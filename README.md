@@ -1,4 +1,4 @@
-# SkillOS — Student Skill & Career Intelligence Graph
+# SkillOS — Student-First AI Career Copilot & Intelligence Graph
 
 [![SkillOS CI](https://github.com/Ravikiran9988/SkillOS/actions/workflows/ci.yml/badge.svg)](https://github.com/Ravikiran9988/SkillOS/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -6,15 +6,15 @@
 [![CognoDB](https://img.shields.io/badge/Database-CognoDB%20(openCypher)-4338CA?logo=neo4j&logoColor=white)](https://cognodb.com/)
 [![Playwright](https://img.shields.io/badge/Tested%20with-Playwright%20E2E-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
-> SkillOS is a full-stack student career intelligence platform powered by **CognoDB**. It connects students, skills, projects, technologies, career roles, courses, jobs, and companies as a graph to identify skill gaps, generate prerequisite learning paths, recommend jobs, and visualize career relationships.
+> **SkillOS** is a student-first AI career copilot and intelligence platform powered by **CognoDB**. It models students, competencies, projects, technologies, career roles, courses, jobs, and companies as a graph to calculate live skill gaps, generate prerequisite learning roadmaps, recommend matching jobs, and provide an interactive AI Career Copilot grounded in verified student graph data.
 
 ---
 
 ## 🌐 Live Production Deployments
 
 - **Live Application (Frontend)**: [https://skill-os-vert.vercel.app/](https://skill-os-vert.vercel.app/)
-- **Production API (Backend)**: [https://skillos-api.onrender.com/api](https://skillos-api.onrender.com/api)
-- **API Health Check**: [https://skillos-api.onrender.com/api/health](https://skillos-api.onrender.com/api/health)
+- **Production API (Backend)**: [https://skillos.onrender.com/api](https://skillos.onrender.com/api)
+- **API Health Check**: [https://skillos.onrender.com/api/health](https://skillos.onrender.com/api/health)
 
 ---
 
