@@ -5,44 +5,77 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('skillos_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('skillos_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (_) {
+      return null;
+    }
   });
-  const [token, setToken] = useState(() => localStorage.getItem('skillos_token'));
+
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem('skillos_token') || null;
+    } catch (_) {
+      return null;
+    }
+  });
+
   const [loading, setLoading] = useState(true);
 
-  // Initialize session or default to demo student-5 if none set
+  // Initialize session or fallback to default student-5 persona
   useEffect(() => {
+    let isMounted = true;
+
     async function initAuth() {
       const savedToken = localStorage.getItem('skillos_token');
       if (savedToken) {
         try {
           const me = await api.getMe();
-          if (me) {
+          if (isMounted && me) {
             setUser(me);
-            localStorage.setItem('skillos_user', JSON.stringify(me));
+            try {
+              localStorage.setItem('skillos_user', JSON.stringify(me));
+            } catch (_) {}
             setLoading(false);
             return;
           }
         } catch (_) {
-          // Token expired or invalid
+          // Token expired or invalid — clear stale data
+          localStorage.removeItem('skillos_token');
+          localStorage.removeItem('skillos_user');
+          if (isMounted) {
+            setToken(null);
+            setUser(null);
+          }
         }
       }
 
       // Auto-initialize demo persona (student-5 Aditya Singh) for frictionless first-time experience
       try {
         const res = await api.login({ studentId: 'student-5' });
-        if (res?.token && res?.student) {
+        if (isMounted && res?.token && res?.student) {
           setToken(res.token);
           setUser(res.student);
-          localStorage.setItem('skillos_token', res.token);
-          localStorage.setItem('skillos_user', JSON.stringify(res.student));
+          try {
+            localStorage.setItem('skillos_token', res.token);
+            localStorage.setItem('skillos_user', JSON.stringify(res.student));
+          } catch (_) {}
         }
-      } catch (_) {}
-      setLoading(false);
+      } catch (err) {
+        console.warn('Initial demo auth could not connect to backend:', err.message);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     }
 
     initAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const loginAsStudent = async (studentId) => {
@@ -52,8 +85,10 @@ export function AuthProvider({ children }) {
       if (res?.token && res?.student) {
         setToken(res.token);
         setUser(res.student);
-        localStorage.setItem('skillos_token', res.token);
-        localStorage.setItem('skillos_user', JSON.stringify(res.student));
+        try {
+          localStorage.setItem('skillos_token', res.token);
+          localStorage.setItem('skillos_user', JSON.stringify(res.student));
+        } catch (_) {}
       }
       return res;
     } finally {
@@ -68,8 +103,10 @@ export function AuthProvider({ children }) {
       if (res?.token && res?.student) {
         setToken(res.token);
         setUser(res.student);
-        localStorage.setItem('skillos_token', res.token);
-        localStorage.setItem('skillos_user', JSON.stringify(res.student));
+        try {
+          localStorage.setItem('skillos_token', res.token);
+          localStorage.setItem('skillos_user', JSON.stringify(res.student));
+        } catch (_) {}
       }
       return res;
     } finally {
@@ -84,8 +121,10 @@ export function AuthProvider({ children }) {
       if (res?.token && res?.student) {
         setToken(res.token);
         setUser(res.student);
-        localStorage.setItem('skillos_token', res.token);
-        localStorage.setItem('skillos_user', JSON.stringify(res.student));
+        try {
+          localStorage.setItem('skillos_token', res.token);
+          localStorage.setItem('skillos_user', JSON.stringify(res.student));
+        } catch (_) {}
       }
       return res;
     } finally {
@@ -96,15 +135,19 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('skillos_token');
-    localStorage.removeItem('skillos_user');
+    try {
+      localStorage.removeItem('skillos_token');
+      localStorage.removeItem('skillos_user');
+    } catch (_) {}
     api.logoutApi().catch(() => {});
   };
 
   const updateUser = (userData) => {
     setUser((prev) => {
-      const updated = { ...prev, ...userData };
-      localStorage.setItem('skillos_user', JSON.stringify(updated));
+      const updated = { ...(prev || {}), ...userData };
+      try {
+        localStorage.setItem('skillos_user', JSON.stringify(updated));
+      } catch (_) {}
       return updated;
     });
   };
