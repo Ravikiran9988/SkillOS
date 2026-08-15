@@ -25,6 +25,15 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Request interceptor — attach JWT Bearer token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('skillos_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Response interceptor — normalize errors
 api.interceptors.response.use(
   (res) => res,
@@ -42,10 +51,33 @@ api.interceptors.response.use(
   }
 );
 
+// ─── Auth Endpoints ───────────────────────────────────────────────────────────
+export const login = (data) => api.post('/auth/login', data).then((r) => r.data);
+export const register = (data) => api.post('/auth/register', data).then((r) => r.data);
+export const getMe = () => api.get('/auth/me').then((r) => r.data.student);
+export const getDemoStudents = () => api.get('/auth/demo-students').then((r) => r.data.students);
+export const logoutApi = () => api.post('/auth/logout').then((r) => r.data);
+
 // ─── Health ──────────────────────────────────────────────────────────────────
 export const checkHealth = () => api.get('/health').then((r) => r.data);
 
-// ─── Students ────────────────────────────────────────────────────────────────
+// ─── Current Student (Scoped) ─────────────────────────────────────────────────
+export const getMyProfile = () => api.get('/students/me').then((r) => r.data.data);
+export const getMySkills = () => api.get('/students/me/skills').then((r) => r.data.data);
+export const addMySkill = (skillId, proficiency) =>
+  api.post('/students/me/skills', { skillId, proficiency }).then((r) => r.data.data);
+export const removeMySkill = (skillId) =>
+  api.delete(`/students/me/skills/${skillId}`).then((r) => r.data);
+export const setMyTargetCareer = (careerRoleId) =>
+  api.post('/students/me/target-career', { careerRoleId }).then((r) => r.data.data);
+export const getMyCareerMatch = (careerId) =>
+  api.get('/students/me/career-match', careerId ? { params: { careerId } } : {}).then((r) => r.data.data);
+export const getMyLearningPath = (careerId) =>
+  api.get('/students/me/learning-path', careerId ? { params: { careerId } } : {}).then((r) => r.data.data);
+export const getMyJobs = () => api.get('/students/me/recommended-jobs').then((r) => r.data.data);
+export const getMyGraph = () => api.get('/students/me/graph').then((r) => r.data.data);
+
+// ─── Legacy/Explicit Student ID Fallbacks (Protected) ─────────────────────────
 export const getStudents = () => api.get('/students').then((r) => r.data.data);
 export const getStudent = (id) => api.get(`/students/${id}`).then((r) => r.data.data);
 export const createStudent = (data) => api.post('/students', data).then((r) => r.data.data);
@@ -82,3 +114,6 @@ export const getProjectSkills = (id) => api.get(`/projects/${id}/skills`).then((
 export const getTechnologies = () => api.get('/projects/technologies').then((r) => r.data.data);
 export const getAllSkills = () => api.get('/projects/skills').then((r) => r.data.data);
 export const createProject = (data) => api.post('/projects', data).then((r) => r.data.data);
+
+// ─── AI Career Copilot ───────────────────────────────────────────────────────
+export const careerChat = (message) => api.post('/ai/career-chat', { message }).then((r) => r.data.data);

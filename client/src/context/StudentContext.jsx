@@ -1,57 +1,71 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getStudents } from '../services/api';
+import { useAuth } from './AuthContext';
+import * as api from '../services/api';
 
 const StudentContext = createContext(null);
 
 export function StudentProvider({ children }) {
-  const [students, setStudents] = useState([]);
-  const [currentStudent, setCurrentStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loginAsStudent, updateUser } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [students, setStudents] = useState([]);
 
+  // Fetch all students for background switcher/testing
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await getStudents();
-        setStudents(data);
-        // Default to first student
-        if (data.length > 0 && !currentStudent) {
-          setCurrentStudent(data[0]);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    api
+      .getStudents()
+      .then((data) => setStudents(data || []))
+      .catch(() => {});
+  }, []);
 
-  const selectStudent = (student) => setCurrentStudent(student);
-
-  const refreshStudents = async () => {
+  // Fetch full student profile when user changes
+  const fetchStudentProfile = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    setError(null);
     try {
-      const data = await getStudents();
-      setStudents(data);
-      // Update currentStudent if it changed
-      if (currentStudent) {
-        const updated = data.find((s) => s.id === currentStudent.id);
-        if (updated) setCurrentStudent(updated);
+      const data = await api.getStudent(user.id);
+      setProfile(data);
+      if (data?.targetCareer) {
+        updateUser({ targetCareer: data.targetCareer });
       }
     } catch (err) {
-      console.error('Failed to refresh students:', err.message);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchStudentProfile();
+  }, [user?.id]);
+
+  const selectStudent = async (studentId) => {
+    await loginAsStudent(studentId);
+  };
+
   return (
-    <StudentContext.Provider value={{ students, currentStudent, selectStudent, loading, error, refreshStudents }}>
+    <StudentContext.Provider
+      value={{
+        selectedStudentId: user?.id || 'student-5',
+        setSelectedStudentId: selectStudent,
+        currentStudent: profile || user,
+        students,
+        loading,
+        error,
+        refreshStudent: fetchStudentProfile,
+      }}
+    >
       {children}
     </StudentContext.Provider>
   );
 }
 
 export function useStudent() {
-  const ctx = useContext(StudentContext);
-  if (!ctx) throw new Error('useStudent must be used inside StudentProvider');
-  return ctx;
+  const context = useContext(StudentContext);
+  if (!context) {
+    throw new Error('useStudent must be used within a StudentProvider');
+  }
+  return context;
 }

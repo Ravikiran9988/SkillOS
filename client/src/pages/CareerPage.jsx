@@ -1,144 +1,180 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, Search, ArrowRight, ChevronRight } from 'lucide-react';
-import { getCareers, getCareerExploration } from '../services/api';
-import { useStudent } from '../context/StudentContext';
-import { getCareerMatch } from '../services/api';
-import CareerCard from '../components/CareerCard';
+import { useAuth } from '../context/AuthContext';
+import * as api from '../services/api';
+import {
+  Compass,
+  Sparkles,
+  TrendingUp,
+  Target,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+} from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorState from '../components/ErrorState';
-import EmptyState from '../components/EmptyState';
-import { CardSkeleton } from '../components/LoadingSkeleton';
 
 export default function CareerPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const { currentStudent } = useStudent();
 
-  const [careers, setCareers] = useState([]);
-  const [matches, setMatches] = useState([]);
-  const [exploration, setExploration] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [careerMatches, setCareerMatches] = useState([]);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all'); // 'all' | 'strong' | 'explore' | 'stretch'
+
+  const loadCareers = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getCareerMatch(user.id);
+      setCareerMatches(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || 'Failed to match career tracks.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setLoading(true);
-    const promises = [getCareers(), getCareerExploration()];
-    if (currentStudent) {
-      promises.push(getCareerMatch(currentStudent.id));
-    }
-    Promise.all(promises)
-      .then(([c, e, m]) => {
-        setCareers(c);
-        setExploration(e);
-        if (m) setMatches(m.matches || []);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [currentStudent?.id]);
+    loadCareers();
+  }, [user?.id]);
 
-  const matchMap = {};
-  matches.forEach((m) => {
-    matchMap[m.career.id] = m;
+  if (loading) return <LoadingSpinner message="Evaluating your 2-hop match across 15 career tracks..." />;
+  if (error) return <ErrorState message={error} onRetry={loadCareers} />;
+
+  const filtered = careerMatches.filter((item) => {
+    const title = item.careerRole?.title?.toLowerCase() || '';
+    const matchesSearch = title.includes(search.toLowerCase());
+    const pct = item.matchPercentage || 0;
+
+    if (!matchesSearch) return false;
+    if (filter === 'strong') return pct >= 70;
+    if (filter === 'explore') return pct >= 40 && pct < 70;
+    if (filter === 'stretch') return pct < 40;
+    return true;
   });
-
-  const filtered = careers.filter((c) =>
-    c.title.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (error) return <ErrorState error={error} onRetry={() => window.location.reload()} />;
-
-  // Build career path chains for exploration
-  const careerChains = [];
-  const sourceIds = new Set(exploration.filter((e) => e.leadsTo.length > 0).map((e) => e.career.id));
-  const targetIds = new Set(exploration.flatMap((e) => e.leadsTo.map((r) => r.id)));
-  const roots = exploration.filter((e) => !targetIds.has(e.career.id) && e.leadsTo.length > 0);
-
-  for (const root of roots.slice(0, 4)) {
-    const chain = [root.career];
-    let current = root;
-    for (let i = 0; i < 3 && current.leadsTo.length > 0; i++) {
-      const next = exploration.find((e) => e.career.id === current.leadsTo[0]?.id);
-      if (!next) break;
-      chain.push(next.career);
-      current = next;
-    }
-    if (chain.length > 1) careerChains.push(chain);
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-black text-white">Career Explorer</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Explore {careers.length} career paths. Graph traversal shows progression routes.
-        </p>
-      </div>
-
-      {/* Career Path Chains */}
-      {!loading && careerChains.length > 0 && (
-        <div className="glass-card p-5">
-          <h2 className="section-title mb-4">Career Progression Paths</h2>
-          <div className="space-y-3">
-            {careerChains.map((chain, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-1">
-                {chain.map((role, j) => (
-                  <React.Fragment key={role.id}>
-                    <button
-                      onClick={() => navigate(`/career/${role.id}`)}
-                      className="px-3 py-1.5 rounded-lg bg-surface-700 hover:bg-brand-900/40 text-sm font-medium text-slate-300 hover:text-brand-300 transition-all border border-transparent hover:border-brand-700/30"
-                    >
-                      {role.title}
-                    </button>
-                    {j < chain.length - 1 && (
-                      <ChevronRight className="w-4 h-4 text-slate-600" />
-                    )}
-                  </React.Fragment>
-                ))}
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-slate-500 mt-3">
-            These paths are derived from LEADS_TO graph relationships, not hardcoded.
+      {/* ─── Header ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2.5">
+            <Compass className="w-7 h-7 text-indigo-400" /> Find Your Best Career Path
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            2-hop graph matching algorithm computing real-time compatibility for{' '}
+            <span className="font-semibold text-white">{user?.name}</span>.
           </p>
         </div>
-      )}
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-        <input
-          type="text"
-          className="input-field pl-10"
-          placeholder="Search careers..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
       </div>
 
-      {/* Career grid */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => <CardSkeleton key={i} />)}
+      {/* ─── Filters & Search ────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search roles (e.g. AI Researcher, Software Engineer)..."
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
+          />
         </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState title="No careers found" description="Try a different search term." icon={Brain} />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((career) => {
-            const match = matchMap[career.id];
-            return (
-              <CareerCard
-                key={career.id}
-                career={career}
-                matchPercentage={match?.matchPercentage}
-                matchedCount={match?.matchedSkillIds?.length}
-                totalRequired={match?.totalRequired}
-                onClick={() => navigate(`/career/${career.id}`)}
-              />
-            );
-          })}
+
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {[
+            { id: 'all', label: 'All Roles' },
+            { id: 'strong', label: 'Strong Match (≥70%)' },
+            { id: 'explore', label: 'Explore (40-69%)' },
+            { id: 'stretch', label: 'Stretch (<40%)' },
+          ].map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                filter === f.id
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* ─── Careers Grid ────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filtered.map((item) => {
+          const role = item.careerRole;
+          const matchPct = item.matchPercentage || 0;
+          const matchedCount = item.matchedCount || 0;
+          const totalReq = item.totalRequired || 0;
+
+          return (
+            <div
+              key={role.id}
+              onClick={() => navigate(`/career/${role.id}`)}
+              className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/50 transition cursor-pointer group shadow-xl flex flex-col justify-between space-y-4"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition">
+                    {role.title}
+                  </h3>
+                  <span
+                    className={`text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${
+                      matchPct >= 70
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : matchPct >= 40
+                        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {matchPct}% Match
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                  {role.description}
+                </p>
+
+                {/* Progress bar */}
+                <div className="mt-4 space-y-1.5">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-400">Skill Overlap</span>
+                    <span className="font-semibold text-slate-200">
+                      {matchedCount} / {totalReq} skills
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        matchPct >= 70
+                          ? 'bg-emerald-400'
+                          : matchPct >= 40
+                          ? 'bg-indigo-500'
+                          : 'bg-slate-600'
+                      }`}
+                      style={{ width: `${matchPct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-indigo-400 font-semibold">
+                <span>View Career Path & Roadmap</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

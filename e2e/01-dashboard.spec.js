@@ -1,31 +1,26 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('E2E Test 1 — Dashboard & Student Selection', () => {
-  test('should load Dashboard, display branding, stats, and support student selection', async ({ page }) => {
+test.describe('E2E Test 1 — Student-First Dashboard & Career Readiness', () => {
+  test('should load Dashboard with student metrics, journey stepper, and next actions', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // Branding & Header
-    await expect(page.getByText('SkillOS', { exact: true })).toBeVisible();
-    await expect(page.getByText('Career Intelligence', { exact: true })).toBeVisible();
+    await expect(page.getByText('SkillOS').first()).toBeVisible();
+    await expect(page.getByText('AI Career Copilot').first()).toBeVisible();
 
-    // Select student-5 (Aditya Singh)
-    const studentSelect = page.locator('select');
-    await studentSelect.waitFor({ state: 'visible' });
-    await studentSelect.selectOption('student-5');
-    await page.waitForLoadState('networkidle');
-
-    // Verify selected student welcome & header
+    // Student personalized greeting (Aditya Singh)
     await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible();
-    await expect(page.locator('h1').getByText('Aditya Singh')).toBeVisible();
-    await expect(page.locator('header').getByText('Aditya Singh')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Aditya Singh/i })).toBeVisible();
 
-    // Verify statistics cards
-    await expect(page.getByText('Skills', { exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Career Matches' })).toBeVisible();
-    await expect(page.getByText('Top Match', { exact: true })).toBeVisible();
+    // 4 Core Student Metrics
+    await expect(page.getByText('Target Goal', { exact: true })).toBeVisible();
+    await expect(page.getByText('Career Match', { exact: true })).toBeVisible();
+    await expect(page.getByText('Job Readiness', { exact: true })).toBeVisible();
+    await expect(page.getByText('My Skills', { exact: true })).toBeVisible();
 
-    // Verify AI Researcher career match is displayed
-    await expect(page.locator('main').getByText('AI Researcher').first()).toBeVisible();
+    // Visual Career Journey & Next Best Actions
+    await expect(page.getByText('Your Personal Career Journey', { exact: true })).toBeVisible();
+    await expect(page.getByText('Your Next Best Actions', { exact: true })).toBeVisible();
   });
 });

@@ -4,11 +4,13 @@ const cors = require('cors');
 const morgan = require('morgan');
 const errorHandler = require('./middleware/errorHandler');
 
+const authRouter = require('./routes/auth');
 const healthRouter = require('./routes/health');
 const studentsRouter = require('./routes/students');
 const careersRouter = require('./routes/careers');
 const jobsRouter = require('./routes/jobs');
 const projectsRouter = require('./routes/projects');
+const aiRouter = require('./routes/ai');
 
 const app = express();
 
@@ -47,7 +49,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Student-Id'],
   exposedHeaders: ['Access-Control-Allow-Origin'],
   optionsSuccessStatus: 200,
   maxAge: 86400,
@@ -80,11 +82,13 @@ app.get('/api', (req, res) => {
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+app.use('/api/auth', authRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/students', studentsRouter);
 app.use('/api/careers', careersRouter);
 app.use('/api/jobs', jobsRouter);
 app.use('/api/projects', projectsRouter);
+app.use('/api/ai', aiRouter);
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 app.use((req, res) => {

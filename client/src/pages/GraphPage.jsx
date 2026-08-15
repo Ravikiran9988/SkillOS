@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -6,225 +6,187 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
-  Handle,
-  Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Network, RefreshCw, Info } from 'lucide-react';
-import { useStudent } from '../context/StudentContext';
-import { getStudentGraph } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { getStudentGraph, getCareers, getJobs } from '../services/api';
 import ErrorState from '../components/ErrorState';
-import EmptyState from '../components/EmptyState';
+import { PageSkeleton } from '../components/LoadingSkeleton';
+import { Network, Info, Sparkles, Filter, RefreshCw, Compass } from 'lucide-react';
 
-// ─── Custom Node Types ────────────────────────────────────────────────────────
-
-const nodeStyles = {
-  student:      { bg: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: '#6366f1', label: '👤' },
-  skill:        { bg: 'linear-gradient(135deg,#0f766e,#059669)', border: '#10b981', label: '⚡' },
-  requiredSkill:{ bg: 'linear-gradient(135deg,#b45309,#d97706)', border: '#f59e0b', label: '🎯' },
-  career:       { bg: 'linear-gradient(135deg,#7c3aed,#a21caf)', border: '#d946ef', label: '🏁' },
-  job:          { bg: 'linear-gradient(135deg,#0369a1,#0284c7)', border: '#38bdf8', label: '💼' },
-  company:      { bg: 'linear-gradient(135deg,#166534,#15803d)', border: '#4ade80', label: '🏢' },
-  project:      { bg: 'linear-gradient(135deg,#9f1239,#be185d)', border: '#f43f5e', label: '📁' },
-  technology:   { bg: 'linear-gradient(135deg,#374151,#4b5563)', border: '#9ca3af', label: '🔧' },
+const nodeColors = {
+  Person: { bg: '#4f46e5', border: '#818cf8', text: '#ffffff', label: 'You (Student)' },
+  Skill: { bg: '#0891b2', border: '#22d3ee', text: '#ffffff', label: 'Skill' },
+  CareerRole: { bg: '#d97706', border: '#fcd34d', text: '#ffffff', label: 'Target Career' },
+  Job: { bg: '#059669', border: '#34d399', text: '#ffffff', label: 'Job Opening' },
+  Project: { bg: '#7c3aed', border: '#a78bfa', text: '#ffffff', label: 'Project' },
+  Company: { bg: '#dc2626', border: '#f87171', text: '#ffffff', label: 'Company' },
 };
 
-function CustomNode({ data }) {
-  const style = nodeStyles[data.type] || nodeStyles.skill;
-  return (
-    <div
-      style={{
-        background: style.bg,
-        border: `1.5px solid ${style.border}`,
-        borderRadius: 12,
-        padding: '8px 14px',
-        minWidth: 100,
-        maxWidth: 160,
-        textAlign: 'center',
-        boxShadow: `0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px ${style.border}22`,
-      }}
-    >
-      <Handle type="target" position={Position.Top} style={{ background: style.border, border: 'none', width: 6, height: 6 }} />
-      <div style={{ fontSize: 16, marginBottom: 2 }}>{style.label}</div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', lineHeight: 1.3, wordBreak: 'break-word' }}>
-        {data.label}
-      </div>
-      {data.data?.proficiency && (
-        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-          {data.data.proficiency}
-        </div>
-      )}
-      <Handle type="source" position={Position.Bottom} style={{ background: style.border, border: 'none', width: 6, height: 6 }} />
-    </div>
-  );
-}
-
-const nodeTypes = { custom: CustomNode };
-
-// ─── Layout helper — simple layered layout ────────────────────────────────────
-function layoutNodes(rawNodes) {
-  const typeOrder = ['student', 'skill', 'requiredSkill', 'career', 'project', 'job', 'company', 'technology'];
-  const groups = {};
-  rawNodes.forEach((n) => {
-    const t = n.type || 'skill';
-    if (!groups[t]) groups[t] = [];
-    groups[t].push(n);
-  });
-
-  const positioned = [];
-  let yOffset = 0;
-  const VERT_GAP = 160;
-  const HORIZ_GAP = 190;
-
-  typeOrder.forEach((type) => {
-    const group = groups[type] || [];
-    group.forEach((node, i) => {
-      const xOffset = (i - (group.length - 1) / 2) * HORIZ_GAP;
-      positioned.push({
-        id: node.id,
-        type: 'custom',
-        position: { x: 400 + xOffset, y: yOffset },
-        data: { label: node.label, type: node.type, data: node.data },
-      });
-    });
-    if (group.length > 0) yOffset += VERT_GAP;
-  });
-
-  return positioned;
-}
-
-// ─── Main Component ──────────────────────────────────────────────────────────
-
 export default function GraphPage() {
-  const { currentStudent } = useStudent();
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [loaded, setLoaded] = useState(false);
+  const [selectedNode, setSelectedNode] = useState(null);
 
-  const loadGraph = useCallback(async () => {
-    if (!currentStudent) return;
+  const loadGraph = useCallback(() => {
+    if (!user?.id) return;
     setLoading(true);
     setError(null);
-    try {
-      const { nodes, edges } = await getStudentGraph(currentStudent.id);
+    setSelectedNode(null);
 
-      const positionedNodes = layoutNodes(nodes);
-      setRfNodes(positionedNodes);
+    getStudentGraph(user.id)
+      .then((data) => {
+        const rawNodes = data.nodes || [];
+        const rawEdges = data.links || [];
 
-      const rfEdges = edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        label: e.label,
-        type: 'smoothstep',
-        animated: e.label?.includes('TARGETS') || e.label?.includes('HAS_SKILL'),
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
-        style: { stroke: '#4f46e5', strokeWidth: 1.5 },
-        labelStyle: { fill: '#94a3b8', fontSize: 10, fontWeight: 500 },
-        labelBgStyle: { fill: '#15152a', fillOpacity: 0.85 },
-        labelBgPadding: [4, 6],
-        labelBgBorderRadius: 4,
-      }));
-      setRfEdges(rfEdges);
-      setLoaded(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentStudent?.id]);
+        // Position nodes radially / hierarchically centered on student
+        const flowNodes = rawNodes.map((n, index) => {
+          const cfg = nodeColors[n.label] || { bg: '#475569', border: '#94a3b8', text: '#fff' };
+          const isCenter = n.label === 'Person';
+
+          const angle = (index / Math.max(1, rawNodes.length - 1)) * 2 * Math.PI;
+          const radius = isCenter ? 0 : n.label === 'Skill' ? 220 : n.label === 'CareerRole' ? 380 : 480;
+
+          return {
+            id: n.id,
+            data: { label: n.name || n.id, raw: n },
+            position: {
+              x: 500 + (isCenter ? 0 : Math.cos(angle) * radius),
+              y: 350 + (isCenter ? 0 : Math.sin(angle) * radius),
+            },
+            style: {
+              background: cfg.bg,
+              color: cfg.text,
+              border: `2px solid ${cfg.border}`,
+              borderRadius: isCenter ? '24px' : '14px',
+              padding: isCenter ? '14px 22px' : '8px 14px',
+              fontSize: isCenter ? '13px' : '11px',
+              fontWeight: isCenter ? '800' : '600',
+              boxShadow: isCenter
+                ? '0 0 30px rgba(99, 102, 241, 0.4)'
+                : '0 4px 15px rgba(0, 0, 0, 0.3)',
+              cursor: 'pointer',
+            },
+          };
+        });
+
+        const flowEdges = rawEdges.map((e, idx) => ({
+          id: `e-${idx}`,
+          source: e.source,
+          target: e.target,
+          label: e.type || '',
+          labelStyle: { fill: '#94a3b8', fontSize: 9, fontWeight: 600 },
+          labelBgStyle: { fill: '#0f172a', fillOpacity: 0.8 },
+          labelBgPadding: [4, 2],
+          style: { stroke: '#475569', strokeWidth: 1.5 },
+          animated: e.type === 'TARGETS' || e.type === 'REQUIRES',
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+        }));
+
+        setNodes(flowNodes);
+        setEdges(flowEdges);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [user?.id]);
 
   useEffect(() => {
-    if (currentStudent) loadGraph();
+    loadGraph();
   }, [loadGraph]);
 
-  const nodeLegend = Object.entries(nodeStyles).map(([type, style]) => ({
-    type,
-    label: type.charAt(0).toUpperCase() + type.slice(1).replace(/([A-Z])/g, ' $1'),
-    emoji: style.label,
-    border: style.border,
-  }));
+  const onNodeClick = useCallback((_, node) => {
+    setSelectedNode(node.data.raw);
+  }, []);
+
+  if (loading) return <PageSkeleton />;
+  if (error) return <ErrorState message={error} onRetry={loadGraph} />;
 
   return (
-    <div className="space-y-4 animate-fade-in h-[calc(100vh-140px)] flex flex-col">
-      <div className="flex items-start justify-between flex-shrink-0">
+    <div className="space-y-4 animate-fade-in">
+      {/* ─── Header ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white">Graph Explorer</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Interactive visualization of {currentStudent?.name || 'your'}'s career knowledge graph.
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2.5">
+            <Network className="w-7 h-7 text-indigo-400" /> My Career Graph
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Visualizing your personal graph ecosystem: verified skills, projects, goal alignment, and job routes.
           </p>
         </div>
-        <button className="btn-secondary text-sm" onClick={loadGraph} disabled={loading || !currentStudent}>
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Loading...' : 'Refresh'}
+
+        <button
+          onClick={loadGraph}
+          className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition border border-slate-700 flex items-center gap-1.5 self-start sm:self-auto"
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> Re-center Graph
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2 flex-shrink-0">
-        {nodeLegend.map(({ type, label, emoji, border }) => (
-          <div
-            key={type}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-700/50 border border-surface-600 text-xs text-slate-300"
-          >
-            <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: border, boxShadow: `0 0 4px ${border}` }} />
-            {emoji} {label}
-          </div>
-        ))}
-      </div>
+      {/* ─── Graph Canvas & Legend ───────────────────────────────────────── */}
+      <div className="relative rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl overflow-hidden h-[620px]">
+        {/* Top Legend Bar */}
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 flex-wrap p-2 rounded-2xl bg-slate-950/90 border border-slate-800/80 backdrop-blur-md">
+          {Object.entries(nodeColors).map(([key, cfg]) => (
+            <span key={key} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-300 px-2 py-0.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: cfg.bg }} />
+              {cfg.label}
+            </span>
+          ))}
+        </div>
 
-      {/* Graph canvas */}
-      <div className="flex-1 glass-card overflow-hidden rounded-2xl">
-        {!currentStudent ? (
-          <EmptyState title="No student selected" description="Select a student to visualize their graph." icon={Network} />
-        ) : error ? (
-          <ErrorState error={error} onRetry={loadGraph} />
-        ) : loading && !loaded ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="w-10 h-10 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-slate-400 text-sm">Building graph from CognoDB...</p>
-            </div>
-          </div>
-        ) : rfNodes.length === 0 ? (
-          <EmptyState
-            title="No graph data"
-            description="Add skills to generate a graph visualization."
-            icon={Network}
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          fitView
+          attributionPosition="bottom-right"
+        >
+          <Background color="#1e293b" gap={20} size={1} />
+          <Controls className="!bg-slate-900 !border-slate-800 !text-slate-300" />
+          <MiniMap
+            nodeColor={(n) => {
+              const raw = n.data?.raw;
+              return nodeColors[raw?.label]?.bg || '#64748b';
+            }}
+            className="!bg-slate-950 !border-slate-800"
           />
-        ) : (
-          <ReactFlow
-            nodes={rfNodes}
-            edges={rfEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            attributionPosition="bottom-right"
-          >
-            <Background color="#2e2e52" gap={20} size={1} />
-            <Controls
-              style={{
-                background: '#15152a',
-                border: '1px solid #312e81',
-                borderRadius: 10,
-              }}
-            />
-            <MiniMap
-              nodeColor={(node) => nodeStyles[node.data?.type]?.border || '#6366f1'}
-              maskColor="rgba(0,0,0,0.6)"
-              style={{ borderRadius: 10 }}
-            />
-          </ReactFlow>
-        )}
-      </div>
+        </ReactFlow>
 
-      <div className="flex items-start gap-2 text-xs text-slate-500 flex-shrink-0">
-        <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-        <p>Nodes and edges are fetched live from CognoDB via parameterized Cypher. Pan to explore · scroll to zoom.</p>
+        {/* Selected Node Sidebar Overlay */}
+        {selectedNode && (
+          <div className="absolute top-4 right-4 z-10 w-72 p-5 rounded-2xl bg-slate-950/95 border border-slate-800 shadow-2xl backdrop-blur-xl space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                {selectedNode.label} Entity
+              </span>
+              <button
+                onClick={() => setSelectedNode(null)}
+                className="text-slate-500 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <h4 className="text-base font-bold text-white">{selectedNode.name || selectedNode.title || selectedNode.id}</h4>
+
+            {selectedNode.proficiency && (
+              <div className="text-xs text-slate-300">
+                Proficiency: <span className="font-bold text-emerald-400">{selectedNode.proficiency}</span>
+              </div>
+            )}
+            {selectedNode.category && (
+              <div className="text-xs text-slate-400">Category: {selectedNode.category}</div>
+            )}
+            {selectedNode.description && (
+              <div className="text-xs text-slate-400 line-clamp-3">{selectedNode.description}</div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
