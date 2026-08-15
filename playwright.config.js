@@ -19,23 +19,24 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-  webServer: process.env.PLAYWRIGHT_BASE_URL
-    ? undefined
-    : [
-        {
-          command: 'node server/src/server.js',
-          url: 'http://localhost:3001/api/health',
-          reuseExistingServer: !process.env.CI,
-          timeout: 60000,
-          env: { PORT: '3001' },
-        },
-        {
-          command: 'npm --prefix client run dev -- --port 5173',
-          url: 'http://localhost:5173',
-          reuseExistingServer: !process.env.CI,
-          timeout: 60000,
-        },
-      ],
+  webServer:
+    process.env.CI || process.env.PLAYWRIGHT_BASE_URL
+      ? undefined
+      : [
+          {
+            command: 'node server/src/server.js',
+            url: 'http://localhost:3001/api/health',
+            reuseExistingServer: true,
+            timeout: 60000,
+            env: { PORT: '3001' },
+          },
+          {
+            command: 'npm --prefix client run dev -- --port 5173',
+            url: 'http://localhost:5173',
+            reuseExistingServer: true,
+            timeout: 60000,
+          },
+        ],
   projects: [
     {
       name: 'chromium',
