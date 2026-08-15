@@ -12,16 +12,19 @@ const projectsRouter = require('./routes/projects');
 
 const app = express();
 
-// ─── CORS Configuration ───────────────────────────────────────────────────────
+// ─── Production CORS Configuration ───────────────────────────────────────────
 const allowedOrigins = [
   'https://skill-os-vert.vercel.app',
   'http://localhost:5173',
   'http://localhost:4173',
   'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
 ];
 
-if (process.env.CLIENT_ORIGIN) {
-  process.env.CLIENT_ORIGIN.split(',').forEach((o) => {
+const envFrontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN;
+if (envFrontendUrl) {
+  envFrontendUrl.split(',').forEach((o) => {
     const trimmed = o.trim();
     if (trimmed && !allowedOrigins.includes(trimmed)) {
       allowedOrigins.push(trimmed);
@@ -29,22 +32,30 @@ if (process.env.CLIENT_ORIGIN) {
   });
 }
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. curl, health checks, server-to-server)
     if (!origin) return callback(null, true);
     if (
       allowedOrigins.includes(origin) ||
       /^https:\/\/skill-os-.*\.vercel\.app$/.test(origin) ||
-      /^https:\/\/.*-ravikiran9988.*\.vercel\.app$/.test(origin)
+      /^https:\/\/.*\.vercel\.app$/.test(origin)
     ) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS origin ${origin} not allowed`));
+    return callback(new Error(`CORS origin ${origin} not allowed by SkillOS API`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Access-Control-Allow-Origin'],
+  optionsSuccessStatus: 200,
+  maxAge: 86400,
+};
+
+// Register CORS middleware BEFORE all routes
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(morgan('dev'));

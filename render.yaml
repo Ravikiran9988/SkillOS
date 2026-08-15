@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: FRONTEND_URL
+        value: https://skill-os-vert.vercel.app
       - key: CLIENT_ORIGIN
         value: https://skill-os-vert.vercel.app
       - key: COGNODB_URI

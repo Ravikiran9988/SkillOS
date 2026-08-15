@@ -3,6 +3,10 @@ import axios from 'axios';
 const getBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (!envUrl || typeof envUrl !== 'string' || envUrl.trim() === '') {
+    // In production build, default to the official Render backend URL
+    if (import.meta.env.PROD) {
+      return 'https://skillos-api.onrender.com/api';
+    }
     return '/api';
   }
   let url = envUrl.trim();
