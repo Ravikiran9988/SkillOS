@@ -1,5 +1,7 @@
 # SkillOS — Student Skill & Career Intelligence Graph
 
+[![SkillOS CI](https://github.com/Ravikiran9988/SkillOS/actions/workflows/ci.yml/badge.svg)](https://github.com/Ravikiran9988/SkillOS/actions/workflows/ci.yml)
+
 > A production-ready full-stack web application that maps the complex relationships between students, skills, technologies, projects, career roles, jobs, and companies in a graph database — powered by **CognoDB**.
 
 ---
@@ -301,26 +303,36 @@ cd client && npm run dev
 
 ## 🧪 Automated Test Suites
 
-SkillOS includes a comprehensive suite of automated verification scripts:
+SkillOS includes comprehensive automated verification across API, graph traversal, and real browser DOM levels:
 
 ```bash
+# --- Playwright Browser End-to-End Test Suite ---
+npm run test:e2e          # Run all 11 real browser tests in Chromium
+npm run test:e2e:ui       # Run with interactive Playwright UI mode
+npm run test:e2e:report   # View standalone HTML test report
+
+# --- Backend Graph & API Verification Suites ---
 cd server
-
-# 1. Complete REST API & Traversal Test Suite (19 tests)
-npm run test:api
-
-# 2. Deep Graph-Native Queries Verification (6 tests)
-npm run test:graph
-
-# 3. Edge Cases & Error Handling Suite (11 tests)
-npm run test:edge
-
-# 4. Seed Script Idempotency Verification
-npm run test:idempotency
-
-# 5. End-to-End User Journey Simulation (10 tests)
-npm run test:journey
+npm run test:api          # 1. Complete REST API & Traversal Suite (19 tests)
+npm run test:graph        # 2. Deep Graph-Native Queries Verification (6 tests)
+npm run test:edge         # 3. Edge Cases & Error Handling Suite (11 tests)
+npm run test:idempotency  # 4. Seed Script Idempotency Verification
+npm run test:journey      # 5. End-to-End User Journey Simulation (10 tests)
 ```
+
+---
+
+## 🔄 CI/CD Pipeline
+
+SkillOS uses **GitHub Actions** for automated continuous integration on every push and pull request targeting `main`.
+
+The CI pipeline:
+- Installs root, client, and server dependencies via `npm ci`
+- Validates the production frontend build (`npm run build`)
+- Installs Playwright Chromium browser binaries
+- Starts the backend API and frontend preview server
+- Runs real Chromium Playwright E2E tests against the application
+- Automatically uploads Playwright HTML reports and failure traces on errors
 
 ---
 

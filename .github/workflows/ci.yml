@@ -1,0 +1,90 @@
+name: SkillOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build & Playwright E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      COGNODB_URI: ${{ secrets.COGNODB_URI }}
+      COGNODB_USERNAME: ${{ secrets.COGNODB_USERNAME }}
+      COGNODB_PASSWORD: ${{ secrets.COGNODB_PASSWORD }}
+      PORT: 3001
+      NODE_ENV: test
+      VITE_API_URL: http://localhost:3001
+
+    steps:
+      - name: 1. Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. Install root dependencies
+        run: npm ci
+
+      - name: 4. Install client dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: 5. Install server dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: 6. Build frontend production bundle
+        run: |
+          cd client
+          npm run build
+
+      - name: 7. Install Playwright Chromium with dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: 8. Seed CognoDB database
+        if: env.COGNODB_URI != ''
+        run: |
+          node server/scripts/seed.js
+
+      - name: 9. Start SkillOS Backend and Frontend
+        run: |
+          echo "Starting backend server on port 3001..."
+          node server/src/server.js &
+          
+          echo "Starting frontend preview on port 5173..."
+          cd client && npm run preview -- --port 5173 --host &
+
+      - name: 10. Wait for services to be available
+        run: |
+          echo "Waiting for backend health check..."
+          npx wait-on -t 60000 http://localhost:3001/api/health
+          echo "Waiting for frontend client..."
+          npx wait-on -t 60000 http://localhost:5173
+          echo "Services are ready!"
+
+      - name: 11. Run Playwright Chromium E2E Suite
+        run: npm run test:e2e
+
+      - name: 12. Upload Playwright Test Artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
