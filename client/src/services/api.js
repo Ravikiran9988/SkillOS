@@ -80,6 +80,8 @@ export const getMyGraph = () => api.get('/students/me/graph').then((r) => r.data
 // ─── Legacy/Explicit Student ID Fallbacks (Protected) ─────────────────────────
 export const getStudents = () => api.get('/students').then((r) => r.data.data);
 export const getStudent = (id) => api.get(`/students/${id}`).then((r) => r.data.data);
+export const updateStudent = (id, data) => api.put(`/students/${id}`, data).then((r) => r.data.data);
+export const updateMyProfile = (data) => api.put('/students/me', data).then((r) => r.data.data);
 export const createStudent = (data) => api.post('/students', data).then((r) => r.data.data);
 export const getStudentSkills = (id) => api.get(`/students/${id}/skills`).then((r) => r.data.data);
 export const addStudentSkill = (id, skillId, proficiency) =>

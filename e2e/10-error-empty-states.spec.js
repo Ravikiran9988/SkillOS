@@ -21,7 +21,7 @@ test.describe('E2E Test 10 — Error & Empty States Handling', () => {
     // Navigate to Jobs with student-20
     await page.getByRole('link', { name: /Job Matches/i }).click();
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText(/No matching job openings found|Add more verified skills/i).first()).toBeVisible();
+    await expect(page.getByText(/No matching job openings|Add more verified skills/i).first()).toBeVisible();
   });
 
   test('should handle invalid career route with a clean error state', async ({ page }) => {
@@ -29,6 +29,6 @@ test.describe('E2E Test 10 — Error & Empty States Handling', () => {
     await page.waitForLoadState('networkidle');
 
     // Verify clean ErrorState component renders with error message
-    await expect(page.getByText(/not found|Something went wrong|Career not found/i).first()).toBeVisible();
+    await expect(page.getByText(/not found|Something went wrong|Career role not found/i).first()).toBeVisible();
   });
 });

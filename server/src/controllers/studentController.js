@@ -28,6 +28,15 @@ async function createStudent(req, res, next) {
   }
 }
 
+async function updateStudent(req, res, next) {
+  try {
+    const updated = await studentService.updateStudentProfile(req.params.id, req.body);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function getStudentSkills(req, res, next) {
   try {
     const { getStudentSkills } = require('../repositories/studentRepository');
@@ -134,6 +143,7 @@ module.exports = {
   getAllStudents,
   getStudent,
   createStudent,
+  updateStudent,
   getStudentSkills,
   addSkill,
   removeSkill,

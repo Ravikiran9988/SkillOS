@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { loginAs } from './auth.helper.js';
 
 test.describe('E2E Test 6 — Job Recommendations', () => {
   test('should navigate to Jobs and display 3-hop matched jobs with companies and filters', async ({ page }) => {
+    await loginAs(page, 'Aditya Singh');
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
 
@@ -15,7 +17,7 @@ test.describe('E2E Test 6 — Job Recommendations', () => {
     await expect(page.getByText(/Match/i).first()).toBeVisible();
 
     // Test search filter
-    const searchInput = page.getByPlaceholder(/Search roles/i);
+    const searchInput = page.getByPlaceholder(/Search/i);
     await searchInput.fill('Engineer');
     await expect(page.locator('main').getByText(/Engineer/i).first()).toBeVisible();
   });

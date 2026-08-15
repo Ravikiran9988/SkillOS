@@ -18,6 +18,7 @@ import LearningRoadmapPage from './pages/LearningRoadmapPage';
 import JobsPage from './pages/JobsPage';
 import CareerCopilotPage from './pages/CareerCopilotPage';
 import GraphPage from './pages/GraphPage';
+import SettingsPage from './pages/SettingsPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function ProtectedLayout() {
@@ -64,6 +65,7 @@ export default function App() {
                   <Route path="/jobs" element={<JobsPage />} />
                   <Route path="/copilot" element={<CareerCopilotPage />} />
                   <Route path="/graph" element={<GraphPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
                 </Route>
 
                 {/* Catch-all fallback */}

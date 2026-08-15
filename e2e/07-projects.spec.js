@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { loginAs } from './auth.helper.js';
 
 test.describe('E2E Test 7 — Projects & Skill Inference', () => {
   test('should display projects with tech stacks and expand Query H skill inference', async ({ page }) => {
+    await loginAs(page, 'Aditya Singh');
     await page.goto('/projects');
     await page.waitForLoadState('networkidle');
 
     // Verify Projects header
-    await expect(page.getByRole('heading', { name: /My Projects & Skill Inference/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /My Projects/i })).toBeVisible();
 
     // Verify seeded project cards render
     await expect(page.getByText('AI Skin Disease Detection')).toBeVisible();

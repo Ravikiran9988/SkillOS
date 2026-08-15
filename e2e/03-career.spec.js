@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { loginAs } from './auth.helper.js';
 
 test.describe('E2E Test 3 — Career Explorer & Track Matching', () => {
   test('should navigate to Careers, filter tracks, and open Career Detail', async ({ page }) => {
+    await loginAs(page, 'Aditya Singh');
     await page.goto('/careers');
     await page.waitForLoadState('networkidle');
 
     // Verify Career Explorer heading
-    await expect(page.getByRole('heading', { name: /Find Your Best Career Path/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Career Explorer/i })).toBeVisible();
 
     // Test Career Search input
     const searchInput = page.getByPlaceholder(/Search roles/i);

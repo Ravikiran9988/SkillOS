@@ -25,6 +25,17 @@ async function createStudent(data) {
   return studentRepo.createStudent({ ...data, id });
 }
 
+async function updateStudentProfile(personId, data) {
+  const existing = await studentRepo.getStudentById(personId);
+  if (!existing) {
+    const err = new Error(`Student with id '${personId}' not found.`);
+    err.status = 404;
+    throw err;
+  }
+  await studentRepo.updateStudent(personId, data);
+  return getStudentProfile(personId);
+}
+
 async function addSkillToStudent(personId, skillId, proficiency) {
   return studentRepo.addStudentSkill(personId, skillId, proficiency);
 }

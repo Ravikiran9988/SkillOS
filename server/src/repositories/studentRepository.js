@@ -59,6 +59,92 @@ async function createStudent({ id, name, email, educationLevel }) {
   return result.records[0].get('p').properties;
 }
 
+// ─── Update student profile ────────────────────────────────────────────────
+async function updateStudent(personId, data) {
+  const {
+    name,
+    headline,
+    bio,
+    phone,
+    location,
+    country,
+    github,
+    linkedin,
+    portfolio,
+    leetcode,
+    kaggle,
+    educationLevel,
+    branch,
+    university,
+    graduationYear,
+    cgpa,
+    experienceYears,
+    preferredLocation,
+    expectedSalary,
+    workPreference,
+    education,
+    experience,
+    certifications,
+  } = data;
+
+  const result = await write(
+    `MATCH (p:Person {id: $personId})
+     SET p.name = COALESCE($name, p.name),
+         p.headline = COALESCE($headline, p.headline),
+         p.bio = COALESCE($bio, p.bio),
+         p.phone = COALESCE($phone, p.phone),
+         p.location = COALESCE($location, p.location),
+         p.country = COALESCE($country, p.country),
+         p.github = COALESCE($github, p.github),
+         p.linkedin = COALESCE($linkedin, p.linkedin),
+         p.portfolio = COALESCE($portfolio, p.portfolio),
+         p.leetcode = COALESCE($leetcode, p.leetcode),
+         p.kaggle = COALESCE($kaggle, p.kaggle),
+         p.educationLevel = COALESCE($educationLevel, p.educationLevel),
+         p.branch = COALESCE($branch, p.branch),
+         p.university = COALESCE($university, p.university),
+         p.graduationYear = COALESCE($graduationYear, p.graduationYear),
+         p.cgpa = COALESCE($cgpa, p.cgpa),
+         p.experienceYears = COALESCE($experienceYears, p.experienceYears),
+         p.preferredLocation = COALESCE($preferredLocation, p.preferredLocation),
+         p.expectedSalary = COALESCE($expectedSalary, p.expectedSalary),
+         p.workPreference = COALESCE($workPreference, p.workPreference),
+         p.educationJson = COALESCE($educationJson, p.educationJson),
+         p.experienceJson = COALESCE($experienceJson, p.experienceJson),
+         p.certificationsJson = COALESCE($certificationsJson, p.certificationsJson),
+         p.updatedAt = datetime()
+     RETURN p`,
+    {
+      personId,
+      name: name || null,
+      headline: headline || null,
+      bio: bio || null,
+      phone: phone || null,
+      location: location || null,
+      country: country || null,
+      github: github || null,
+      linkedin: linkedin || null,
+      portfolio: portfolio || null,
+      leetcode: leetcode || null,
+      kaggle: kaggle || null,
+      educationLevel: educationLevel || null,
+      branch: branch || null,
+      university: university || null,
+      graduationYear: graduationYear || null,
+      cgpa: cgpa || null,
+      experienceYears: experienceYears || null,
+      preferredLocation: preferredLocation || null,
+      expectedSalary: expectedSalary || null,
+      workPreference: workPreference || null,
+      educationJson: education ? JSON.stringify(education) : null,
+      experienceJson: experience ? JSON.stringify(experience) : null,
+      certificationsJson: certifications ? JSON.stringify(certifications) : null,
+    }
+  );
+  if (result.records.length === 0) return null;
+  return result.records[0].get('p').properties;
+}
+
 // ─── Add skill to student ───────────────────────────────────────────────────
 async function addStudentSkill(personId, skillId, proficiency) {
   const result = await write(

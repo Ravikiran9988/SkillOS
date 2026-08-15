@@ -10,6 +10,7 @@ router.post('/', c.createStudent);
 // Student-Specific Endpoints (Protected with Data Isolation)
 // Supports both '/api/students/me/...' and '/api/students/:id/...'
 router.get('/:id', requireAuth, requireSelfOrAdmin, c.getStudent);
+router.put('/:id', requireAuth, requireSelfOrAdmin, c.updateStudent);
 router.get('/:id/skills', requireAuth, requireSelfOrAdmin, c.getStudentSkills);
 router.post('/:id/skills', requireAuth, requireSelfOrAdmin, c.addSkill);
 router.delete('/:id/skills/:skillId', requireAuth, requireSelfOrAdmin, c.removeSkill);

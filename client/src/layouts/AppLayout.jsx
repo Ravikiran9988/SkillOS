@@ -34,6 +34,7 @@ const NAV_ITEMS = [
   { name: 'Job Matches', path: '/jobs', icon: Briefcase },
   { name: 'AI Career Copilot', path: '/copilot', icon: Bot, badge: 'AI' },
   { name: 'My Career Graph', path: '/graph', icon: Network },
+  { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
 const MOBILE_PRIMARY_NAV = [
