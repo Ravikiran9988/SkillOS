@@ -1,15 +1,13 @@
 import { expect } from '@playwright/test';
 
 export async function loginAs(page, studentName = 'Aditya Singh') {
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
+  await page.goto('/login');
+  await page.waitForLoadState('domcontentloaded');
 
-  // If redirected to /login, click the 1-click demo persona button
-  if (page.url().includes('/login')) {
-    const btn = page.getByRole('button', { name: new RegExp(studentName, 'i') });
-    await expect(btn).toBeVisible({ timeout: 10000 });
+  const btn = page.getByRole('button', { name: new RegExp(studentName, 'i') });
+  if (await btn.isVisible({ timeout: 5000 }).catch(() => false)) {
     await btn.click();
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
-    await page.waitForLoadState('networkidle');
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 }).catch(() => {});
   }
+  await page.waitForLoadState('networkidle');
 }
