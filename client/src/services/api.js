@@ -5,7 +5,7 @@ const getBaseUrl = () => {
   if (!envUrl || typeof envUrl !== 'string' || envUrl.trim() === '') {
     // In production build, default to the official Render backend URL
     if (import.meta.env.PROD) {
-      return 'https://skillos-api.onrender.com/api';
+      return 'https://skillos.onrender.com/api';
     }
     return '/api';
   }

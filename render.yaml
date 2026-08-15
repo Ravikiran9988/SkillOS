@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: skillos-api
+    name: skillos
     env: node
     plan: free
     buildCommand: cd server && npm install
