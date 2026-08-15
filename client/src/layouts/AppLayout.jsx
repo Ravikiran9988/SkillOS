@@ -21,6 +21,7 @@ import {
   Moon,
   Bell,
   Search,
+  Settings,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
