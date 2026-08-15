@@ -9,10 +9,13 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useAuth } from '../context/AuthContext';
-import { getStudentGraph, getCareers, getJobs } from '../services/api';
+import { getStudentGraph } from '../services/api';
 import ErrorState from '../components/ErrorState';
 import { PageSkeleton } from '../components/LoadingSkeleton';
-import { Network, Info, Sparkles, Filter, RefreshCw, Compass } from 'lucide-react';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import { Network, Info, Sparkles, RefreshCw, X } from 'lucide-react';
 
 const nodeColors = {
   Person: { bg: '#4f46e5', border: '#818cf8', text: '#ffffff', label: 'You (Student)' },
@@ -42,7 +45,7 @@ export default function GraphPage() {
         const rawNodes = data.nodes || [];
         const rawEdges = data.links || [];
 
-        // Position nodes radially / hierarchically centered on student
+        // Position nodes radially centered on student
         const flowNodes = rawNodes.map((n, index) => {
           const cfg = nodeColors[n.label] || { bg: '#475569', border: '#94a3b8', text: '#fff' };
           const isCenter = n.label === 'Person';
@@ -61,29 +64,25 @@ export default function GraphPage() {
               background: cfg.bg,
               color: cfg.text,
               border: `2px solid ${cfg.border}`,
-              borderRadius: isCenter ? '24px' : '14px',
-              padding: isCenter ? '14px 22px' : '8px 14px',
-              fontSize: isCenter ? '13px' : '11px',
+              borderRadius: isCenter ? '24px' : '16px',
+              padding: isCenter ? '14px 20px' : '10px 16px',
               fontWeight: isCenter ? '800' : '600',
-              boxShadow: isCenter
-                ? '0 0 30px rgba(99, 102, 241, 0.4)'
-                : '0 4px 15px rgba(0, 0, 0, 0.3)',
+              fontSize: isCenter ? '14px' : '12px',
+              boxShadow: isCenter ? '0 0 30px rgba(79, 70, 229, 0.4)' : '0 4px 12px rgba(0,0,0,0.3)',
               cursor: 'pointer',
             },
           };
         });
 
         const flowEdges = rawEdges.map((e, idx) => ({
-          id: `e-${idx}`,
-          source: e.source,
-          target: e.target,
-          label: e.type || '',
-          labelStyle: { fill: '#94a3b8', fontSize: 9, fontWeight: 600 },
-          labelBgStyle: { fill: '#0f172a', fillOpacity: 0.8 },
-          labelBgPadding: [4, 2],
-          style: { stroke: '#475569', strokeWidth: 1.5 },
-          animated: e.type === 'TARGETS' || e.type === 'REQUIRES',
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+          id: `e-${idx}-${e.source}-${e.target}`,
+          source: typeof e.source === 'object' ? e.source.id : e.source,
+          target: typeof e.target === 'object' ? e.target.id : e.target,
+          label: e.type || e.relationship,
+          animated: e.type === 'TARGETS' || e.type === 'HAS_SKILL',
+          style: { stroke: '#4f46e5', strokeWidth: 1.5 },
+          labelStyle: { fill: '#94a3b8', fontSize: 10, fontWeight: 600 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#4f46e5' },
         }));
 
         setNodes(flowNodes);
@@ -91,7 +90,7 @@ export default function GraphPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [user?.id]);
+  }, [user?.id, setNodes, setEdges]);
 
   useEffect(() => {
     loadGraph();
@@ -105,35 +104,34 @@ export default function GraphPage() {
   if (error) return <ErrorState message={error} onRetry={loadGraph} />;
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-6 animate-fade-in flex flex-col h-[calc(100vh-6rem)]">
       {/* ─── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2.5">
-            <Network className="w-7 h-7 text-indigo-400" /> My Career Graph
+          <h1 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2.5">
+            <Network className="w-6 h-6 text-indigo-400" /> Your Career Graph
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Visualizing your personal graph ecosystem: verified skills, projects, goal alignment, and job routes.
+          <p className="text-xs text-slate-400 mt-0.5">
+            Live topological visualization of your skills, projects, career goals, and opportunities.
           </p>
         </div>
 
-        <button
-          onClick={loadGraph}
-          className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition border border-slate-700 flex items-center gap-1.5 self-start sm:self-auto"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Re-center Graph
-        </button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" icon={RefreshCw} onClick={loadGraph}>
+            Reset View
+          </Button>
+        </div>
       </div>
 
-      {/* ─── Graph Canvas & Legend ───────────────────────────────────────── */}
-      <div className="relative rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl overflow-hidden h-[620px]">
-        {/* Top Legend Bar */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 flex-wrap p-2 rounded-2xl bg-slate-950/90 border border-slate-800/80 backdrop-blur-md">
+      {/* ─── Graph Canvas ────────────────────────────────────────────────── */}
+      <Card className="flex-1 relative overflow-hidden bg-slate-950 border-slate-800 flex flex-col">
+        {/* Node Legend */}
+        <div className="absolute top-4 left-4 z-10 p-3 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-slate-800 flex flex-wrap gap-2 text-[11px] shadow-lg max-w-md">
           {Object.entries(nodeColors).map(([key, cfg]) => (
-            <span key={key} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-300 px-2 py-0.5">
+            <div key={key} className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-950/80">
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: cfg.bg }} />
-              {cfg.label}
-            </span>
+              <span className="text-slate-300 font-medium">{cfg.label}</span>
+            </div>
           ))}
         </div>
 
@@ -144,50 +142,42 @@ export default function GraphPage() {
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
           fitView
-          attributionPosition="bottom-right"
+          className="w-full h-full"
         >
-          <Background color="#1e293b" gap={20} size={1} />
-          <Controls className="!bg-slate-900 !border-slate-800 !text-slate-300" />
+          <Background color="#1e1e38" gap={20} size={1} />
+          <Controls className="!bg-slate-900 !border-slate-800 !text-white" />
           <MiniMap
             nodeColor={(n) => {
               const raw = n.data?.raw;
-              return nodeColors[raw?.label]?.bg || '#64748b';
+              return nodeColors[raw?.label]?.bg || '#4f46e5';
             }}
-            className="!bg-slate-950 !border-slate-800"
+            className="!bg-slate-900 !border-slate-800"
           />
         </ReactFlow>
 
-        {/* Selected Node Sidebar Overlay */}
+        {/* Selected Node Details Drawer */}
         {selectedNode && (
-          <div className="absolute top-4 right-4 z-10 w-72 p-5 rounded-2xl bg-slate-950/95 border border-slate-800 shadow-2xl backdrop-blur-xl space-y-3 animate-fade-in">
+          <div className="absolute bottom-4 right-4 z-10 w-80 p-5 rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-indigo-500/40 shadow-2xl text-xs space-y-2 animate-slide-up">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
-                {selectedNode.label} Entity
-              </span>
-              <button
-                onClick={() => setSelectedNode(null)}
-                className="text-slate-500 hover:text-white text-xs"
-              >
-                ✕
+              <Badge variant="brand" size="sm">
+                {selectedNode.label || 'Entity'}
+              </Badge>
+              <button onClick={() => setSelectedNode(null)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
               </button>
             </div>
-
-            <h4 className="text-base font-bold text-white">{selectedNode.name || selectedNode.title || selectedNode.id}</h4>
-
-            {selectedNode.proficiency && (
-              <div className="text-xs text-slate-300">
-                Proficiency: <span className="font-bold text-emerald-400">{selectedNode.proficiency}</span>
-              </div>
-            )}
-            {selectedNode.category && (
-              <div className="text-xs text-slate-400">Category: {selectedNode.category}</div>
-            )}
+            <h3 className="text-sm font-bold text-white">{selectedNode.name || selectedNode.id}</h3>
             {selectedNode.description && (
-              <div className="text-xs text-slate-400 line-clamp-3">{selectedNode.description}</div>
+              <p className="text-slate-300 leading-relaxed text-[11px]">{selectedNode.description}</p>
+            )}
+            {selectedNode.proficiency && (
+              <div className="text-slate-400">
+                Proficiency: <strong className="text-emerald-400">{selectedNode.proficiency}</strong>
+              </div>
             )}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

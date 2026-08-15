@@ -117,3 +117,8 @@ export const createProject = (data) => api.post('/projects', data).then((r) => r
 
 // ─── AI Career Copilot ───────────────────────────────────────────────────────
 export const careerChat = (message) => api.post('/ai/career-chat', { message }).then((r) => r.data.data);
+export const askCareerCopilot = (studentId, message) =>
+  api.post('/ai/career-chat', { message, studentId }).then((r) => r.data.data);
+export const askCopilot = (studentId, message) =>
+  api.post('/ai/career-chat', { message, studentId }).then((r) => r.data.data);
+

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { StudentProvider } from './context/StudentContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import AppLayout from './layouts/AppLayout';
@@ -40,36 +41,38 @@ function ProtectedLayout() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <StudentProvider>
-            <Routes>
-              {/* Public Auth Routes */}
-              <Route path="/login" element={<LoginPage />} />
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <StudentProvider>
+              <Routes>
+                {/* Public Auth Routes */}
+                <Route path="/login" element={<LoginPage />} />
 
-              {/* Protected Student-First Experience */}
-              <Route element={<ProtectedLayout />}>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="/dashboard" element={<Navigate to="/" replace />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/skills" element={<SkillsPage />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/careers" element={<CareerPage />} />
-                <Route path="/career" element={<Navigate to="/careers" replace />} />
-                <Route path="/career/:id" element={<CareerDetailPage />} />
-                <Route path="/skill-gap" element={<SkillGapPage />} />
-                <Route path="/roadmap" element={<LearningRoadmapPage />} />
-                <Route path="/jobs" element={<JobsPage />} />
-                <Route path="/copilot" element={<CareerCopilotPage />} />
-                <Route path="/graph" element={<GraphPage />} />
-              </Route>
+                {/* Protected Student-First Experience */}
+                <Route element={<ProtectedLayout />}>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/dashboard" element={<Navigate to="/" replace />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/skills" element={<SkillsPage />} />
+                  <Route path="/projects" element={<ProjectsPage />} />
+                  <Route path="/careers" element={<CareerPage />} />
+                  <Route path="/career" element={<Navigate to="/careers" replace />} />
+                  <Route path="/career/:id" element={<CareerDetailPage />} />
+                  <Route path="/skill-gap" element={<SkillGapPage />} />
+                  <Route path="/roadmap" element={<LearningRoadmapPage />} />
+                  <Route path="/jobs" element={<JobsPage />} />
+                  <Route path="/copilot" element={<CareerCopilotPage />} />
+                  <Route path="/graph" element={<GraphPage />} />
+                </Route>
 
-              {/* Catch-all fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </StudentProvider>
-        </AuthProvider>
-      </BrowserRouter>
+                {/* Catch-all fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </StudentProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

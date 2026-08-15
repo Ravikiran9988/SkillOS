@@ -7,240 +7,248 @@ import {
   Send,
   Sparkles,
   User,
-  ArrowRight,
-  RefreshCw,
-  Target,
   Brain,
-  Zap,
+  Target,
+  Map,
+  Briefcase,
+  Layers,
+  ArrowRight,
+  Shield,
 } from 'lucide-react';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 const SUGGESTED_PROMPTS = [
   'What should I learn next?',
-  'Am I ready for my target career?',
-  'Why is my career match score what it is?',
-  'Which projects should I build for my resume?',
-  'Review my current skill portfolio.',
-  'How can I become job-ready in 3 months?',
+  'Am I ready for an AI Engineer job?',
+  'Why is my career match only 57%?',
+  'Review my skills and top gaps',
+  'What project should I build next?',
+  'Create a 30-day learning plan',
 ];
 
 export default function CareerCopilotPage() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const messagesEndRef = useRef(null);
 
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome',
-      sender: 'copilot',
-      text: `Hello ${user?.name || 'there'}! I am your **SkillOS AI Career Copilot**.
+  const messagesEndRef = useRef(null);
 
-I have loaded your personal CognoDB career graph. I can analyze your verified skills, evaluate your target goal readiness, diagnose skill gaps, and suggest tailored projects.
-
-What would you like to explore today?`,
-      actionLinks: [
-        { label: 'View Roadmap', path: '/roadmap' },
-        { label: 'Inspect Skill Gaps', path: '/skill-gap' },
-        { label: 'Explore Job Matches', path: '/jobs' },
-      ],
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
-
-  // If navigated with initialPrompt from another page
   useEffect(() => {
     if (location.state?.initialPrompt) {
-      handleSend(location.state.initialPrompt);
+      sendMessage(location.state.initialPrompt);
     }
-  }, [location.state?.initialPrompt]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [location.state]);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const handleSend = async (textToSend) => {
+  const sendMessage = async (textToSend) => {
     const text = (textToSend || input).trim();
-    if (!text || loading) return;
+    if (!text || loading || !user?.id) return;
 
-    const userMsg = {
-      id: `user-${Date.now()}`,
-      sender: 'user',
-      text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    const userMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text,
+      timestamp: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setLoading(true);
 
     try {
-      const response = await api.careerChat(text);
-      const copilotMsg = {
-        id: `copilot-${Date.now()}`,
-        sender: 'copilot',
-        text: response.message,
-        actionLinks: response.actionLinks || [],
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      const response = await api.askCareerCopilot(user.id, text);
+      const assistantMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: response.reply || response.answer || response.content || 'I have analyzed your graph.',
+        context: response.context,
+        timestamp: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, copilotMsg]);
+      setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
-      const errorMsg = {
-        id: `err-${Date.now()}`,
-        sender: 'copilot',
-        text: `I had trouble connecting to the graph reasoning service (${err.message}). Your CognoDB career analysis is still accessible directly via the navigation tabs.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'I encountered an issue connecting to the CognoDB intelligence engine. Please try again.',
+        timestamp: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col space-y-4 animate-fade-in">
+    <div className="flex flex-col h-[calc(100vh-6rem)] max-w-5xl mx-auto animate-fade-in space-y-4">
       {/* ─── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-            <Bot className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-white flex items-center gap-2">
-              AI Career Copilot
-              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                CognoDB Connected
-              </span>
-            </h1>
-            <p className="text-xs text-slate-400">
-              Personalized career guidance grounded in your live portfolio
-            </p>
-          </div>
+      <div className="flex items-center justify-between pb-2 border-b border-slate-800 shrink-0">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2.5">
+            <Bot className="w-6 h-6 text-indigo-400" /> Your AI Career Copilot
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Real-time career advisory grounded in your live CognoDB student graph.
+          </p>
         </div>
+
+        <Badge variant="ai" icon={Sparkles}>
+          Graph-Grounded
+        </Badge>
       </div>
 
-      {/* ─── Chat Messages Scrollable Window ─────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-800">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex items-start gap-3 ${
-              msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
-            }`}
-          >
-            {/* Avatar */}
-            <div
-              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold ${
-                msg.sender === 'user'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20'
-              }`}
-            >
-              {msg.sender === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+      {/* ─── Messages Container ──────────────────────────────────────────── */}
+      <Card className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-slate-900/90 border-slate-800">
+        {messages.length === 0 ? (
+          <div className="h-full flex flex-col justify-center items-center text-center max-w-lg mx-auto space-y-5 py-8">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/25">
+              <Bot className="w-8 h-8 text-white" />
             </div>
 
-            {/* Message Bubble */}
-            <div
-              className={`max-w-2xl rounded-2xl p-4 sm:p-5 shadow-lg space-y-3 ${
-                msg.sender === 'user'
-                  ? 'bg-indigo-600 text-white rounded-tr-none'
-                  : 'bg-slate-900/90 border border-slate-800 text-slate-200 rounded-tl-none'
-              }`}
-            >
-              {/* Message Text with simple formatting */}
-              <div className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed space-y-2">
-                {msg.text}
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-bold text-white">Hi {user?.name || 'there'} 👋</h2>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                I'm your SkillOS Career Copilot. I have full live context on your verified skills, projects, target career, skill gaps, roadmap, and matched jobs.
+              </p>
+            </div>
+
+            <div className="w-full pt-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2.5 text-left">
+                Suggested questions:
               </div>
-
-              {/* Action Buttons if provided */}
-              {msg.actionLinks && msg.actionLinks.length > 0 && (
-                <div className="pt-3 border-t border-slate-800/80 flex flex-wrap gap-2">
-                  {msg.actionLinks.map((link) => (
-                    <button
-                      key={link.path}
-                      onClick={() => navigate(link.path)}
-                      className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-semibold transition flex items-center gap-1.5"
-                    >
-                      <span>{link.label}</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div
-                className={`text-[10px] ${
-                  msg.sender === 'user' ? 'text-indigo-200 text-right' : 'text-slate-500'
-                }`}
-              >
-                {msg.timestamp}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {SUGGESTED_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    onClick={() => sendMessage(prompt)}
+                    className="p-3 rounded-xl bg-slate-950/80 hover:bg-indigo-900/40 border border-slate-800 hover:border-indigo-500/40 text-xs text-left text-slate-200 hover:text-white transition flex items-center justify-between group"
+                  >
+                    <span className="truncate">"{prompt}"</span>
+                    <ArrowRight className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
+                  </button>
+                ))}
               </div>
             </div>
           </div>
-        ))}
+        ) : (
+          <div className="space-y-4">
+            {messages.map((msg) => {
+              const isUser = msg.role === 'user';
 
-        {loading && (
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0">
-              <Bot className="w-4 h-4" />
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-              <span>Analyzing your CognoDB career graph & formulating strategy...</span>
-            </div>
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
+                >
+                  {!isUser && (
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-indigo-500/20">
+                      <Bot className="w-4 h-4" />
+                    </div>
+                  )}
+
+                  <div
+                    className={`max-w-2xl rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
+                      isUser
+                        ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-600/20'
+                        : 'bg-slate-950/90 border border-slate-800 text-slate-100 rounded-tl-sm shadow-sm'
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+
+                    {!isUser && (
+                      <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center gap-2 flex-wrap text-[11px]">
+                        <button
+                          onClick={() => navigate('/skill-gap')}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-indigo-400 font-semibold transition"
+                        >
+                          View Skill Gap
+                        </button>
+                        <button
+                          onClick={() => navigate('/roadmap')}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-indigo-400 font-semibold transition"
+                        >
+                          Open Roadmap
+                        </button>
+                        <button
+                          onClick={() => navigate('/jobs')}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-indigo-400 font-semibold transition"
+                        >
+                          Find Jobs
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {isUser && (
+                    <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                      {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {loading && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0">
+                  <Bot className="w-4 h-4 animate-pulse" />
+                </div>
+                <div className="p-4 rounded-2xl rounded-tl-sm bg-slate-950/90 border border-slate-800 text-slate-400 text-xs flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-400 animate-spin" />
+                  <span>Synthesizing response from CognoDB knowledge graph...</span>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
         )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* ─── Suggested Prompt Chips ──────────────────────────────────────── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 shrink-0 scrollbar-none">
-        <span className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1 shrink-0">
-          <Sparkles className="w-3 h-3 text-indigo-400" /> Suggestions:
-        </span>
-        {SUGGESTED_PROMPTS.map((prompt) => (
-          <button
-            key={prompt}
-            onClick={() => handleSend(prompt)}
-            disabled={loading}
-            className="px-3 py-1 rounded-full bg-slate-900/80 hover:bg-indigo-900/40 border border-slate-800 hover:border-indigo-500/40 text-[11px] text-slate-300 hover:text-white transition whitespace-nowrap disabled:opacity-50 shrink-0"
-          >
-            "{prompt}"
-          </button>
-        ))}
-      </div>
+      </Card>
 
       {/* ─── Input Bar ───────────────────────────────────────────────────── */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSend();
-        }}
-        className="flex items-center gap-2 p-2 rounded-2xl bg-slate-900 border border-slate-800/90 shadow-xl shrink-0"
-      >
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={`Ask anything about your ${user?.targetCareer?.title || 'career'} preparation...`}
-          disabled={loading}
-          className="flex-1 px-4 py-2.5 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
-        />
-
-        <button
-          type="submit"
-          disabled={!input.trim() || loading}
-          className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition disabled:opacity-40 shadow-lg shadow-indigo-600/30 shrink-0"
-          aria-label="Send message"
+      <div className="shrink-0">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            sendMessage();
+          }}
+          className="relative flex items-center gap-2"
         >
-          <Send className="w-4 h-4" />
-        </button>
-      </form>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask anything about your skills, roadmap, career path..."
+            disabled={loading}
+            className="flex-1 px-4 py-3 rounded-2xl bg-slate-900 border border-slate-800 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 shadow-lg transition"
+          />
+
+          <Button
+            type="submit"
+            disabled={!input.trim() || loading}
+            loading={loading}
+            icon={Send}
+            className="rounded-2xl px-5 py-3"
+          >
+            Send
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

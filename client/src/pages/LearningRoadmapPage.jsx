@@ -12,9 +12,14 @@ import {
   Sparkles,
   ExternalLink,
   ChevronRight,
+  Zap,
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorState from '../components/ErrorState';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import ProgressBar from '../components/ui/ProgressBar';
 
 export default function LearningRoadmapPage() {
   const { user } = useAuth();
@@ -70,37 +75,61 @@ export default function LearningRoadmapPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2.5">
-            <Map className="w-7 h-7 text-indigo-400" /> Your Personalized Learning Roadmap
+            <Map className="w-7 h-7 text-indigo-400" /> Your Learning Roadmap
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Topologically ordered prerequisite sequence derived directly from CognoDB for{' '}
+            A step-by-step path from where you are today to job-ready for{' '}
             <span className="font-bold text-indigo-300">{targetRole?.title || 'your target career'}</span>.
           </p>
         </div>
 
-        <button
-          onClick={() => navigate('/skill-gap')}
-          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition border border-slate-700 flex items-center justify-center gap-2 self-start sm:self-auto"
-        >
+        <Button variant="secondary" onClick={() => navigate('/skill-gap')}>
           View Skill Gaps
-        </button>
+        </Button>
       </div>
+
+      {/* ─── Milestone Phases Bar ────────────────────────────────────────── */}
+      <Card className="p-6 sm:p-7">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
+          Milestone Phases
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs">
+          {[
+            { phase: '1', title: 'Foundation', status: 'completed' },
+            { phase: '2', title: 'Core Skills', status: 'current' },
+            { phase: '3', title: 'Advanced Stack', status: 'next' },
+            { phase: '4', title: 'Project Work', status: 'next' },
+            { phase: '5', title: 'Job Ready', status: 'next' },
+          ].map((m) => (
+            <div
+              key={m.phase}
+              className={`p-3 rounded-xl border ${
+                m.status === 'completed'
+                  ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300 font-bold'
+                  : m.status === 'current'
+                  ? 'bg-indigo-950/40 border-indigo-500 text-white font-bold'
+                  : 'bg-slate-950/40 border-slate-800 text-slate-400'
+              }`}
+            >
+              <div className="text-[10px] text-slate-400">Phase {m.phase}</div>
+              <div className="mt-0.5">{m.title}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {/* ─── Stepper Sequence ────────────────────────────────────────────── */}
       {orderedSkills.length === 0 ? (
-        <div className="text-center py-16 px-4 rounded-3xl bg-slate-900/40 border border-slate-800/60">
+        <Card className="text-center py-16 px-4">
           <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
           <h3 className="text-base font-bold text-white">All Prerequisites Met!</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            You already have all verified prerequisite competencies for this role.
+            You already have all verified prerequisite competencies for this career role.
           </p>
-          <button
-            onClick={() => navigate('/jobs')}
-            className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white inline-flex items-center gap-2"
-          >
-            Explore Job Opportunities <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+          <Button icon={ArrowRight} onClick={() => navigate('/jobs')} className="mt-4">
+            Explore Job Opportunities
+          </Button>
+        </Card>
       ) : (
         <div className="space-y-6">
           {steps.map((step, idx) => {
@@ -110,12 +139,12 @@ export default function LearningRoadmapPage() {
             const prereqs = step.prerequisiteChain || [];
 
             return (
-              <div
+              <Card
                 key={skill.id}
-                className={`p-6 rounded-3xl border transition shadow-xl ${
+                className={`p-6 sm:p-7 space-y-4 ${
                   isCurrent
-                    ? 'bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 border-indigo-500/50 shadow-indigo-500/10'
-                    : 'bg-slate-900/70 border-slate-800/80 hover:border-slate-700'
+                    ? 'bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 border-indigo-500/50 shadow-lg shadow-indigo-500/10'
+                    : 'bg-slate-900/70 border-slate-800/80'
                 }`}
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -132,15 +161,9 @@ export default function LearningRoadmapPage() {
 
                     <div>
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                            isCurrent
-                              ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                              : 'bg-slate-800 text-slate-400'
-                          }`}
-                        >
+                        <Badge variant={isCurrent ? 'brand' : 'slate'} size="sm">
                           {isCurrent ? '⚡ Current Focus' : `Step ${idx + 1}`}
-                        </span>
+                        </Badge>
                         <span className="text-xs text-slate-400">· {skill.category || 'Skill'}</span>
                       </div>
 
@@ -160,24 +183,25 @@ export default function LearningRoadmapPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <button
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      icon={Sparkles}
                       onClick={() =>
                         navigate('/copilot', {
-                          state: { initialPrompt: `How can I learn ${skill.name} step-by-step?` },
+                          state: { initialPrompt: `How can I master ${skill.name} step-by-step?` },
                         })
                       }
-                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-indigo-600 text-xs font-semibold text-slate-200 hover:text-white transition flex items-center gap-1.5"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white" />
-                      <span>Copilot Guide</span>
-                    </button>
+                      Copilot Guide
+                    </Button>
                   </div>
                 </div>
 
                 {/* Curated Courses from CognoDB */}
                 {courses.length > 0 && (
-                  <div className="mt-5 pt-4 border-t border-slate-800/80">
+                  <div className="mt-4 pt-4 border-t border-slate-800/80">
                     <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <BookOpen className="w-3.5 h-3.5 text-indigo-400" /> Recommended Courses
                     </div>
@@ -193,15 +217,15 @@ export default function LearningRoadmapPage() {
                               {course.platform} · {course.duration || '4 weeks'} · {course.difficulty}
                             </div>
                           </div>
-                          <span className="text-indigo-400 text-xs font-bold px-2 py-1 rounded bg-indigo-500/10 shrink-0">
+                          <Badge variant="brand" size="sm">
                             Course
-                          </span>
+                          </Badge>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>

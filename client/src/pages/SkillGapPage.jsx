@@ -16,6 +16,10 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorState from '../components/ErrorState';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import ProgressBar from '../components/ui/ProgressBar';
 
 export default function SkillGapPage() {
   const { user } = useAuth();
@@ -56,7 +60,7 @@ export default function SkillGapPage() {
     loadGapData();
   }, [user?.id]);
 
-  if (loading) return <LoadingSpinner message="Calculating your exact skill gap against CognoDB..." />;
+  if (loading) return <LoadingSpinner message="Calculating your skill gap against CognoDB..." />;
   if (error) return <ErrorState message={error} onRetry={loadGapData} />;
 
   const targetRole = gapData?.career || careerMatches[0]?.careerRole;
@@ -76,33 +80,30 @@ export default function SkillGapPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2.5">
-            <BarChart3 className="w-7 h-7 text-indigo-400" /> What's Between You & Your Career Goal?
+            <BarChart3 className="w-7 h-7 text-indigo-400" /> Your Skill Gap
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Prioritized competency gaps required to reach 100% job-readiness for{' '}
-            <span className="font-bold text-indigo-300">{targetRole?.title || 'your target career'}</span>.
+            Here's what stands between you and your goal of becoming a{' '}
+            <span className="font-bold text-indigo-300">{targetRole?.title || 'Target Role'}</span>.
           </p>
         </div>
 
-        <button
-          onClick={() => navigate('/roadmap')}
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 self-start sm:self-auto"
-        >
-          <Map className="w-4 h-4" /> Open Learning Roadmap
-        </button>
+        <Button icon={Map} onClick={() => navigate('/roadmap')}>
+          Open Learning Roadmap
+        </Button>
       </div>
 
       {/* ─── Top Target Summary Banner ───────────────────────────────────── */}
-      <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+      <Card className="p-6 sm:p-8 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-900 border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
             <Target className="w-7 h-7" />
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Target Role</div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Target Role</span>
             <div className="text-xl font-extrabold text-white">{targetRole?.title || 'Target Role'}</div>
             <div className="text-xs text-slate-400 mt-0.5">
-              {gapData?.totalRequired || 0} total competencies required
+              {gapData?.totalRequired || 0} total required competencies
             </div>
           </div>
         </div>
@@ -118,7 +119,7 @@ export default function SkillGapPage() {
             <div className="text-3xl font-extrabold text-rose-400">{missingSkills.length}</div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* ─── Missing Skills by Priority Buckets ───────────────────────────── */}
       <div className="space-y-6">
@@ -172,13 +173,9 @@ export default function SkillGapPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {matchedSkills.map((s) => (
-                <div
-                  key={s.id}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{s.name}</span>
-                </div>
+                <Badge key={s.id} variant="emerald" icon={CheckCircle2}>
+                  {s.name}
+                </Badge>
               ))}
             </div>
           </div>
@@ -189,40 +186,36 @@ export default function SkillGapPage() {
 }
 
 function SkillGapCard({ skill, targetRole, navigate }) {
+  const isCritical = (skill.importance || '').toLowerCase() === 'critical';
+
   return (
-    <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/40 transition shadow-lg flex flex-col justify-between space-y-4">
+    <Card className="p-5 flex flex-col justify-between space-y-4">
       <div>
         <div className="flex items-start justify-between gap-2">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+            <Badge variant="slate" size="sm">
               {skill.category || 'Competency'}
-            </span>
+            </Badge>
             <h3 className="text-base font-bold text-white mt-1.5">{skill.name}</h3>
           </div>
-          <span
-            className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-              (skill.importance || '').toLowerCase() === 'critical'
-                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-            }`}
-          >
+          <Badge variant={isCritical ? 'rose' : 'amber'} size="sm">
             {skill.importance || 'High'} Priority
-          </span>
+          </Badge>
         </div>
 
         <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-          Required to satisfy <span className="font-semibold text-white">{targetRole?.title}</span> industry requirements.
+          Required to satisfy <strong className="text-white">{targetRole?.title}</strong> industry requirements.
         </p>
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-800">
-        <button
+        <Button
+          size="sm"
+          variant="outline"
           onClick={() => navigate('/roadmap')}
-          className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-xs font-semibold transition flex items-center gap-1"
         >
-          <span>View in Roadmap</span>
-          <ArrowRight className="w-3 h-3" />
-        </button>
+          Add to Roadmap
+        </Button>
 
         <button
           onClick={() =>
@@ -230,12 +223,12 @@ function SkillGapCard({ skill, targetRole, navigate }) {
               state: { initialPrompt: `How should I learn ${skill.name} for my ${targetRole?.title} goal?` },
             })
           }
-          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition flex items-center gap-1"
+          className="text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 transition"
         >
           <Bot className="w-3.5 h-3.5 text-indigo-400" />
           <span>Ask Copilot</span>
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

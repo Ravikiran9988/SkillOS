@@ -16,6 +16,10 @@ import { getCareer, getCareerMatch, getLearningPath, getCareerJobs, setTargetCar
 import { useAuth } from '../context/AuthContext';
 import ErrorState from '../components/ErrorState';
 import { PageSkeleton } from '../components/LoadingSkeleton';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import ProgressBar from '../components/ui/ProgressBar';
 
 export default function CareerDetailPage() {
   const { id } = useParams();
@@ -69,7 +73,7 @@ export default function CareerDetailPage() {
 
   if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
-  if (!career) return <ErrorState message="Career not found." />;
+  if (!career) return <ErrorState message="Career role not found." />;
 
   const matchPct = gapData?.matchPercentage ?? 0;
   const isTarget = user?.targetCareer?.id === career.id || user?.targetCareer?.title === career.title;
@@ -85,13 +89,13 @@ export default function CareerDetailPage() {
           <ArrowLeft className="w-4 h-4" /> Back to Career Explorer
         </button>
 
-        <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
-              Career Profile
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">{career.title}</h1>
-            <p className="text-sm text-slate-300 mt-2 max-w-2xl leading-relaxed">
+        <Card className="p-6 sm:p-8 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-900 border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <Badge variant="brand" icon={Target}>
+              Career Track
+            </Badge>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">{career.title}</h1>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               {career.description}
             </p>
           </div>
@@ -102,86 +106,85 @@ export default function CareerDetailPage() {
               <div className="text-2xl font-extrabold text-emerald-400">{matchPct}%</div>
             </div>
 
-            <button
-              onClick={handleSetTargetCareer}
+            <Button
+              variant={isTarget ? 'secondary' : 'primary'}
+              icon={Target}
+              loading={settingGoal}
               disabled={settingGoal || isTarget}
-              className={`px-4 py-3 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg ${
-                isTarget
-                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
-              }`}
+              onClick={handleSetTargetCareer}
             >
-              <Target className="w-4 h-4" />
-              <span>{isTarget ? 'Current Target Goal' : 'Set as My Target Goal'}</span>
-            </button>
+              {isTarget ? 'Current Target Goal' : 'Set as My Target Goal'}
+            </Button>
           </div>
-        </div>
+        </Card>
       </div>
 
-      {/* ─── Required vs Missing Skills Breakdown ──────────────────────────── */}
+      {/* ─── Matched vs Missing Skills Breakdown ──────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Already Matched */}
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-4">
+        {/* Verified Skills You Have */}
+        <Card className="p-6 sm:p-7 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
               Verified Skills You Have ({gapData?.matchedSkills?.length || 0})
             </h3>
+            <Badge variant="emerald">Matched</Badge>
           </div>
 
           <div className="space-y-2">
             {(gapData?.matchedSkills || []).map((skill) => (
               <div
                 key={skill.id}
-                className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between"
+                className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between"
               >
                 <div>
                   <div className="text-xs font-bold text-white">{skill.name}</div>
-                  <div className="text-[10px] text-slate-400">{skill.category}</div>
+                  <div className="text-[10px] text-slate-400">{skill.category || 'Skill'}</div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <Badge variant="emerald" size="sm">
                   Ready
-                </span>
+                </Badge>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
-        {/* Missing Skills Gap */}
-        <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-4">
+        {/* Missing Competencies to Learn */}
+        <Card className="p-6 sm:p-7 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <XCircle className="w-5 h-5 text-rose-400" />
-              Missing Competencies to Learn ({gapData?.missingSkills?.length || 0})
+              Missing Skills to Acquire ({gapData?.missingSkills?.length || 0})
             </h3>
+            <Badge variant="rose">Skill Gap</Badge>
           </div>
 
           <div className="space-y-2">
             {(gapData?.missingSkills || []).map((skill) => (
               <div
                 key={skill.id}
-                className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between"
+                className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between"
               >
                 <div>
                   <div className="text-xs font-bold text-white">{skill.name}</div>
                   <div className="text-[10px] text-slate-400">
-                    {skill.category} · Priority: {skill.importance || 'High'}
+                    Priority: {skill.importance || 'High'}
                   </div>
                 </div>
                 <button
                   onClick={() =>
                     navigate('/copilot', {
-                      state: { initialPrompt: `How can I learn ${skill.name} for ${career.title}?` },
+                      state: { initialPrompt: `How should I learn ${skill.name} for ${career.title}?` },
                     })
                   }
-                  className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
                 >
                   <Bot className="w-3.5 h-3.5" /> Guide
                 </button>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
