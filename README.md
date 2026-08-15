@@ -10,11 +10,19 @@
 
 ---
 
+## 🌐 Live Production Deployments
+
+- **Live Application (Frontend)**: [https://skill-os-vert.vercel.app/](https://skill-os-vert.vercel.app/)
+- **Production API (Backend)**: [https://skillos-api.onrender.com/api](https://skillos-api.onrender.com/api)
+- **API Health Check**: [https://skillos-api.onrender.com/api/health](https://skillos-api.onrender.com/api/health)
+
+---
+
 ## 📑 Table of Contents
 
 1. [Assignment Focus](#-assignment-focus)
 2. [Core User Journey](#-core-user-journey)
-3. [Architecture](#-architecture)
+3. [Architecture & Deployment Topology](#-architecture--deployment-topology)
 4. [Graph Data Model & Schema](#-graph-data-model--schema)
 5. [Key Graph Queries (openCypher)](#-key-graph-queries-opencypher)
 6. [Feature Matrix](#-feature-matrix)
@@ -78,17 +86,19 @@ Interactive Graph Explorer (React Flow Node-Link Visualization)
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Deployment Topology
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                   React 18 Frontend                    │
-│   (Vite · Tailwind CSS · React Flow · Recharts · Axios) │
+│              Frontend Host (Vercel Edge)               │
+│         https://skill-os-vert.vercel.app/              │
+│   (React 18 · Vite · Tailwind · React Flow · SPA Rewrite)│
 └───────────────────────────┬────────────────────────────┘
-                            │ HTTP / REST API
+                            │ HTTPS / REST (VITE_API_URL)
 ┌───────────────────────────▼────────────────────────────┐
-│                  Express.js Backend                    │
-│               (Node.js 20 · Middleware)                │
+│              Backend Host (Render Cloud)               │
+│       https://skillos-api.onrender.com/api             │
+│        (Node.js 20 · Express · CORS Whitelist)         │
 └───────────────────────────┬────────────────────────────┘
                             │
 ┌───────────────────────────▼────────────────────────────┐
@@ -102,14 +112,27 @@ Interactive Graph Explorer (React Flow Node-Link Visualization)
 └───────────────────────────┬────────────────────────────┘
                             │ Encrypted Bolt (bolt+s://)
 ┌───────────────────────────▼────────────────────────────┐
-│                    CognoDB Instance                    │
-│              (openCypher Graph Database)               │
+│             CognoDB Cloud Graph Database               │
+│               (openCypher Graph Engine)                │
 └────────────────────────────────────────────────────────┘
 ```
 
-- **Official Driver**: Connected via `neo4j-driver` over encrypted Bolt (`bolt+s://`).
-- **Parameterized Cypher**: 100% of queries use parameter maps (`$personId`, `$careerId`, `$skillId`). Zero string concatenation or template literals.
-- **Resilience**: Degraded state handling with `<ErrorState>` and retry mechanisms when the graph database is unreachable.
+### Production Deployment Environment Variables
+
+#### Vercel Frontend Configuration
+| Variable | Value | Purpose |
+|---|---|---|
+| `VITE_API_URL` | `https://skillos-api.onrender.com/api` | Target backend REST API endpoint |
+
+#### Render Backend Configuration
+| Variable | Value | Purpose |
+|---|---|---|
+| `COGNODB_URI` | `bolt+s://db-xxxxxxxx.databases.cognodb.cloud` | Encrypted Bolt connection endpoint |
+| `COGNODB_USERNAME` | `cognodb` | CognoDB username |
+| `COGNODB_PASSWORD` | `[encrypted password]` | CognoDB database password |
+| `CLIENT_ORIGIN` | `https://skill-os-vert.vercel.app` | CORS allowed origin header |
+| `NODE_ENV` | `production` | Production runtime optimizations |
+| `PORT` | `10000` (set by Render) | Express listening port bound to `0.0.0.0` |
 
 ---
 
@@ -268,7 +291,7 @@ RETURN collect(DISTINCT directSkill) AS directSkills,
 - **Backend**: Node.js 20, Express 4, `neo4j-driver` (Bolt over TLS), REST API architecture
 - **Database**: CognoDB (Cloud openCypher graph database via `bolt+s://`)
 - **Testing**: Playwright (Real Chromium browser automation), Node.js test runners
-- **CI/CD**: GitHub Actions (`ubuntu-latest`, automated build, dependency verification, and E2E test execution)
+- **CI/CD & Deployment**: GitHub Actions, Vercel Edge Network, Render Cloud Services
 
 ---
 
@@ -285,9 +308,10 @@ SkillOS/
 │   │   ├── context/           # StudentContext state management
 │   │   ├── layouts/           # AppLayout with sidebar navigation
 │   │   ├── pages/             # Dashboard, Profile, Career, Jobs, Projects, Graph
-│   │   └── services/          # Axios API client
+│   │   └── services/          # Axios API client (dynamic VITE_API_URL)
 │   ├── index.html
 │   ├── tailwind.config.js
+│   ├── vercel.json            # Vercel SPA rewrites
 │   └── vite.config.js
 ├── server/
 │   ├── queries/               # Cypher query files (careers, jobs, learning, skills)
@@ -295,7 +319,7 @@ SkillOS/
 │   └── src/
 │       ├── config/            # CognoDB driver connection
 │       ├── controllers/       # Express controllers
-│       ├── middleware/        # Error handlers and request loggers
+│       ├── middleware/        # Error handlers, request loggers, CORS whitelist
 │       ├── repositories/      # Parameterized Cypher execution layer
 │       ├── routes/            # REST API endpoints
 │       ├── services/          # Business logic & graph traversal algorithms
@@ -306,7 +330,9 @@ SkillOS/
 │   ├── FINAL_ACCEPTANCE_REPORT.md # 11-point Wexa acceptance report
 │   └── screenshots/           # 7 Retina screenshots
 ├── e2e/                       # 10 Playwright browser E2E spec files
-├── playwright.config.js       # Playwright Chromium test runner config
+├── playwright.config.js       # Playwright test runner config with PLAYWRIGHT_BASE_URL support
+├── render.yaml                # Render Blueprint infrastructure-as-code spec
+├── vercel.json                # Root Vercel SPA rewrites
 ├── .env.example               # Environment variables template
 ├── package.json               # Root scripts
 └── README.md
@@ -341,7 +367,7 @@ cd ..
 ```
 
 ### 3. Configure Environment Variables
-Create a `.env` file in the root directory (or in `server/`) based on `.env.example`:
+Create a `.env` file in the root directory based on `.env.example`:
 
 ```bash
 cp .env.example .env
@@ -412,8 +438,11 @@ npm run test:journey
 SkillOS includes a real Chromium browser end-to-end test suite testing actual DOM interactions across all routes:
 
 ```bash
-# Run all 11 real browser E2E tests
+# Run all 11 real browser E2E tests against local environment
 npm run test:e2e
+
+# Run Playwright E2E tests against live production deployment
+npm run test:e2e:prod
 
 # Run with interactive Playwright UI mode
 npm run test:e2e:ui
@@ -421,18 +450,6 @@ npm run test:e2e:ui
 # View standalone interactive HTML report
 npm run test:e2e:report
 ```
-
-**E2E Test Coverage (11 passed / 0 failed)**:
-- `01-dashboard.spec.js`: Branding, statistics cards, student selector (`student-5`).
-- `02-profile.spec.js`: Skills list, proficiency badges, target career goal.
-- `03-career.spec.js`: Career Explorer, progression routes (`LEADS_TO`), search filtering.
-- `04-career-skill-gap.spec.js`: Live 57% match calculation, matched skills, missing skills.
-- `05-learning-path.spec.js`: Prerequisite dependency stepper (1, 2, 3...) and course links.
-- `06-jobs.spec.js`: 3-hop job matching with companies (`OpenAI`, `Google`), seniority filters.
-- `07-projects.spec.js`: Project cards and Query H skill inference.
-- `08-graph-explorer.spec.js`: React Flow interactive canvas, multi-label nodes, and typed edges.
-- `09-navigation.spec.js`: Unbroken navigation loop across all routes without errors.
-- `10-error-empty-states.spec.js`: Empty student profile (`student-20`) and 404 error boundaries.
 
 ---
 
@@ -446,7 +463,7 @@ Checkout → Node 20 → npm ci → Build Frontend → Install Playwright → Se
 
 - **Pipeline Triggers**: Every `push` and `pull_request` targeting `main`.
 - **Encrypted Secrets**: `COGNODB_URI`, `COGNODB_USERNAME`, and `COGNODB_PASSWORD` are supplied via GitHub Actions repository secrets.
-- **Latest Verified CI Run**: [Run #2](https://github.com/Ravikiran9988/SkillOS/actions/runs/21798363725) — **SUCCESS** (11/11 Playwright tests passed in 59s on Ubuntu runner).
+- **Latest Verified CI Run**: [Run #5](https://github.com/Ravikiran9988/SkillOS/actions/runs/21798835848) — **SUCCESS** (11/11 Playwright tests passed in 58s on Ubuntu runner).
 
 ---
 
@@ -469,9 +486,9 @@ Checkout → Node 20 → npm ci → Build Frontend → Install Playwright → Se
 
 ## 🎥 Demo & Submission Walkthrough
 
-- **Public deployment/demo URL**: To be added
+- **Live Application**: [https://skill-os-vert.vercel.app/](https://skill-os-vert.vercel.app/)
 - **Suggested Evaluation Flow**:
-  1. Open the application at `http://localhost:5173`.
+  1. Open the application at `https://skill-os-vert.vercel.app/`.
   2. Select **Aditya Singh** (`student-5`) from the sidebar selector.
   3. View **Dashboard**: Observe calculated top match (AI Researcher at 57%) and job recommendations.
   4. Navigate to **Profile**: Inspect verified skills (`Python`, `PyTorch`, `Deep Learning`) and proficiencies.
