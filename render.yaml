@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: skillos-api
+    env: node
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: node server/src/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ORIGIN
+        value: https://skill-os-vert.vercel.app
+      - key: COGNODB_URI
+        sync: false
+      - key: COGNODB_USERNAME
+        sync: false
+      - key: COGNODB_PASSWORD
+        sync: false
