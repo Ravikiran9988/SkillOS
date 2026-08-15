@@ -5,7 +5,7 @@ test.describe('E2E Test 5 — Personalized Learning Roadmap', () => {
   test('should render graph-derived prerequisite chain with ordered steps and course links', async ({ page }) => {
     await loginAs(page, 'Aditya Singh');
     await page.goto('/roadmap');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify Personalized Learning Roadmap header
     await expect(page.getByRole('heading', { name: /Learning Roadmap/i })).toBeVisible();

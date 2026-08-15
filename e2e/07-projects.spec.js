@@ -5,7 +5,7 @@ test.describe('E2E Test 7 — Projects & Skill Inference', () => {
   test('should display projects with tech stacks and expand Query H skill inference', async ({ page }) => {
     await loginAs(page, 'Aditya Singh');
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify Projects header
     await expect(page.getByRole('heading', { name: /My Projects/i })).toBeVisible();

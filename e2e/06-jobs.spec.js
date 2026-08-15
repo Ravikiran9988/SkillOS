@@ -5,7 +5,7 @@ test.describe('E2E Test 6 — Job Recommendations', () => {
   test('should navigate to Jobs and display 3-hop matched jobs with companies and filters', async ({ page }) => {
     await loginAs(page, 'Aditya Singh');
     await page.goto('/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify Jobs header
     await expect(page.getByRole('heading', { name: /Jobs That Fit You/i })).toBeVisible();

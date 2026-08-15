@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('E2E Test 8 — My Career Graph Explorer', () => {
   test('should render interactive React Flow graph with student nodes and relationship edges', async ({ page }) => {
     await page.goto('/graph');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify Graph Explorer title
     await expect(page.getByRole('heading', { name: /My Career Graph/i })).toBeVisible();

@@ -5,7 +5,7 @@ test.describe('E2E Test 2 — Student Profile & Skills Portfolio', () => {
   test('should navigate to Profile and Skills and display verified competencies', async ({ page }) => {
     await loginAs(page, 'Aditya Singh');
     await page.goto('/profile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify Profile header & details
     await expect(page.locator('main').getByText('Aditya Singh').first()).toBeVisible();
@@ -17,7 +17,7 @@ test.describe('E2E Test 2 — Student Profile & Skills Portfolio', () => {
     // Navigate to My Skills via sidebar
     await page.getByRole('link', { name: /My Skills/i }).click();
     await expect(page).toHaveURL(/\/skills/);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify verified competencies are listed
     await expect(page.locator('main').getByText('Python', { exact: true }).first()).toBeVisible();

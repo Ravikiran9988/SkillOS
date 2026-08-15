@@ -4,11 +4,11 @@ test.describe('E2E Test 11 — Auth & Student Data Isolation (Security & IDOR Pr
   test('should enforce student authentication, prevent IDOR, and isolate student sessions', async ({ page, request }) => {
     // 1. Log in as Student A (student-5 Aditya Singh) via Login page
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.getByRole('button', { name: /Aditya Singh/i }).click();
-    await page.waitForURL((url) => !url.pathname.includes('/login'));
-    await page.waitForLoadState('networkidle');
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByRole('heading', { name: /Aditya Singh/i })).toBeVisible();
 
@@ -31,7 +31,7 @@ test.describe('E2E Test 11 — Auth & Student Data Isolation (Security & IDOR Pr
 
     // 4. Test Sign Out
     await page.getByRole('button', { name: /Sign Out/i }).first().click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await expect(page).toHaveURL(/\/login/);
   });
 });

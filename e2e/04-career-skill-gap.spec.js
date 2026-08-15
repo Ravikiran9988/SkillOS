@@ -5,7 +5,7 @@ test.describe('E2E Test 4 — Student Skill Gap Analysis', () => {
   test('should display prioritized skill gap breakdown for target career', async ({ page }) => {
     await loginAs(page, 'Aditya Singh');
     await page.goto('/skill-gap');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify Skill Gap header
     await expect(page.getByRole('heading', { name: /Your Skill Gap/i })).toBeVisible();

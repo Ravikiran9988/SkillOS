@@ -5,7 +5,7 @@ test.describe('E2E Test 12 — AI Career Copilot Chat & Grounding', () => {
   test('should interact with AI Career Copilot and receive graph-grounded guidance', async ({ page }) => {
     await loginAs(page, 'Aditya Singh');
     await page.goto('/copilot');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify Copilot header
     await expect(page.getByRole('heading', { name: /AI Career Copilot/i })).toBeVisible();
