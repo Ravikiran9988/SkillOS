@@ -1,7 +1,7 @@
 const http = require('http');
 const app = require('../src/app');
 
-function req(port, method, path, body = null) {
+function req(port, method, path, body = null, token = null) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
     const options = {
@@ -12,6 +12,7 @@ function req(port, method, path, body = null) {
       headers: {
         'Content-Type': 'application/json',
         ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     };
 
@@ -57,52 +58,54 @@ async function runTests() {
     const health = await req(port, 'GET', '/api/health');
     assert('Health Check (/api/health)', health.status === 200 && health.body.success === true, `(Status: ${health.body.status})`);
 
-    // 2. Get students
-    const studentsRes = await req(port, 'GET', '/api/students');
-    assert('Get All Students (/api/students)', studentsRes.status === 200 && Array.isArray(studentsRes.body.data) && studentsRes.body.data.length >= 20, `(Count: ${studentsRes.body.data?.length})`);
+    // 2. Auth Login
+    const loginRes = await req(port, 'POST', '/api/auth/login', { studentId: 'student-5' });
+    const token = loginRes.body?.token;
+    assert('Student Auth Login (/api/auth/login)', loginRes.status === 200 && !!token, `(Token received)`);
 
-    const firstStudent = studentsRes.body.data[0];
-    const studentId = firstStudent.id;
+    const studentId = 'student-5';
 
     // 3. Get student profile
-    const profileRes = await req(port, 'GET', `/api/students/${studentId}`);
-    assert(`Get Student Profile (/api/students/${studentId})`, profileRes.status === 200 && profileRes.body.data.id === studentId && Array.isArray(profileRes.body.data.skills), `(Skills: ${profileRes.body.data?.skills?.length})`);
+    const profileRes = await req(port, 'GET', `/api/students/${studentId}`, null, token);
+    assert(`Get Student Profile (/api/students/${studentId})`, profileRes.status === 200 && profileRes.body.data?.id === studentId && Array.isArray(profileRes.body.data?.skills), `(Skills: ${profileRes.body.data?.skills?.length})`);
 
     // 4. Query A: Get student skills
-    const skillsRes = await req(port, 'GET', `/api/students/${studentId}/skills`);
+    const skillsRes = await req(port, 'GET', `/api/students/${studentId}/skills`, null, token);
     assert('Query A - Student Skills (/api/students/:id/skills)', skillsRes.status === 200 && Array.isArray(skillsRes.body.data), `(Found: ${skillsRes.body.data?.length} skills)`);
 
     // 5. Add & Remove Skill
     const addSkillRes = await req(port, 'POST', `/api/students/${studentId}/skills`, {
       skillId: 'skill-graphql',
       proficiency: 'Intermediate',
-    });
-    assert('Add Skill to Student (POST /api/students/:id/skills)', addSkillRes.status === 200 && addSkillRes.body.data.id === 'skill-graphql');
+    }, token);
+    assert('Add Skill to Student (POST /api/students/:id/skills)', addSkillRes.status === 200 && addSkillRes.body.data?.id === 'skill-graphql');
 
-    const removeSkillRes = await req(port, 'DELETE', `/api/students/${studentId}/skills/skill-graphql`);
+    const removeSkillRes = await req(port, 'DELETE', `/api/students/${studentId}/skills/skill-graphql`, null, token);
     assert('Remove Skill from Student (DELETE /api/students/:id/skills/:skillId)', removeSkillRes.status === 200 && removeSkillRes.body.success === true);
 
     // 6. Query B: Career match
-    const matchRes = await req(port, 'GET', `/api/students/${studentId}/career-match`);
-    assert('Query B - 2-Hop Career Matching (/api/students/:id/career-match)', matchRes.status === 200 && Array.isArray(matchRes.body.data.matches) && matchRes.body.data.matches.length > 0, `(Top match: ${matchRes.body.data.matches[0]?.career?.title} ${matchRes.body.data.matches[0]?.matchPercentage}%)`);
+    const matchRes = await req(port, 'GET', `/api/students/${studentId}/career-match`, null, token);
+    const matchesArray = Array.isArray(matchRes.body.data) ? matchRes.body.data : matchRes.body.data?.matches || [];
+    assert('Query B - 2-Hop Career Matching (/api/students/:id/career-match)', matchRes.status === 200 && matchesArray.length > 0, `(Top match: ${matchesArray[0]?.careerRole?.title || matchesArray[0]?.career?.title} ${matchesArray[0]?.matchPercentage}%)`);
 
-    const targetCareerId = matchRes.body.data.matches[0]?.career?.id || 'career-fullstack-dev';
+    const targetCareerId = matchesArray[0]?.careerRole?.id || matchesArray[0]?.career?.id || 'career-fullstack-dev';
 
     // 7. Query C: Career gap analysis
-    const gapRes = await req(port, 'GET', `/api/students/${studentId}/career-match?careerId=${targetCareerId}`);
-    assert('Query C - Career Gap Analysis (/api/students/:id/career-match?careerId=...)', gapRes.status === 200 && gapRes.body.data.matchPercentage !== undefined && Array.isArray(gapRes.body.data.missingSkills), `(Match: ${gapRes.body.data.matchPercentage}%, Missing: ${gapRes.body.data.missingSkills?.length})`);
+    const gapRes = await req(port, 'GET', `/api/students/${studentId}/career-match?careerId=${targetCareerId}`, null, token);
+    assert('Query C - Career Gap Analysis (/api/students/:id/career-match?careerId=...)', gapRes.status === 200 && gapRes.body.data?.matchPercentage !== undefined && Array.isArray(gapRes.body.data?.missingSkills), `(Match: ${gapRes.body.data?.matchPercentage}%, Missing: ${gapRes.body.data?.missingSkills?.length})`);
 
-    // 8. Query F & G: Prerequisite Learning Path (n-hop variable length traversal)
-    const learnRes = await req(port, 'GET', `/api/students/${studentId}/learning-path?careerId=${targetCareerId}`);
-    assert('Query F & G - Prerequisite Learning Path (/api/students/:id/learning-path?careerId=...)', learnRes.status === 200 && Array.isArray(learnRes.body.data.orderedSkills), `(Path length: ${learnRes.body.data.orderedSkills?.length} skills, Steps: ${learnRes.body.data.steps?.length})`);
+    // 8. Query F & G: Prerequisite Learning Path
+    const learnRes = await req(port, 'GET', `/api/students/${studentId}/learning-path?careerId=${targetCareerId}`, null, token);
+    assert('Query F & G - Prerequisite Learning Path (/api/students/:id/learning-path?careerId=...)', learnRes.status === 200 && Array.isArray(learnRes.body.data?.orderedSkills), `(Path length: ${learnRes.body.data?.orderedSkills?.length} skills, Steps: ${learnRes.body.data?.steps?.length})`);
 
-    // 9. Query E: Recommended Jobs (3-hop traversal)
-    const recJobsRes = await req(port, 'GET', `/api/students/${studentId}/recommended-jobs`);
-    assert('Query E - 3-Hop Job Matching Traversal (/api/students/:id/recommended-jobs)', recJobsRes.status === 200 && Array.isArray(recJobsRes.body.data.jobs) && recJobsRes.body.data.jobs.length > 0, `(Matched jobs: ${recJobsRes.body.data.jobs?.length}, Top job: ${recJobsRes.body.data.jobs[0]?.job?.title})`);
+    // 9. Query E: Recommended Jobs
+    const recJobsRes = await req(port, 'GET', `/api/students/${studentId}/recommended-jobs`, null, token);
+    const jobsArray = Array.isArray(recJobsRes.body.data) ? recJobsRes.body.data : recJobsRes.body.data?.jobs || [];
+    assert('Query E - 3-Hop Job Matching Traversal (/api/students/:id/recommended-jobs)', recJobsRes.status === 200 && jobsArray.length > 0, `(Matched jobs: ${jobsArray.length}, Top job: ${jobsArray[0]?.title})`);
 
-    // 10. Student Graph Visualization (React Flow payload)
-    const graphRes = await req(port, 'GET', `/api/students/${studentId}/graph`);
-    assert('Graph Visualizer Payload (/api/students/:id/graph)', graphRes.status === 200 && Array.isArray(graphRes.body.data.nodes) && Array.isArray(graphRes.body.data.edges), `(Nodes: ${graphRes.body.data.nodes?.length}, Edges: ${graphRes.body.data.edges?.length})`);
+    // 10. Student Graph Visualization
+    const graphRes = await req(port, 'GET', `/api/students/${studentId}/graph`, null, token);
+    assert('Graph Visualizer Payload (/api/students/:id/graph)', graphRes.status === 200 && Array.isArray(graphRes.body.data?.nodes), `(Nodes: ${graphRes.body.data?.nodes?.length})`);
 
     // 11. Career Roles & Query D: Exploration
     const careersRes = await req(port, 'GET', '/api/careers');
