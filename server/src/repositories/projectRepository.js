@@ -75,24 +75,46 @@ async function getAllTechnologies() {
 }
 
 // ─── Create a project ────────────────────────────────────────────────────────
-async function createProject({ id, name, description, difficulty }) {
+async function createProject({ id, name, description, difficulty, githubUrl, demoUrl, role, status }) {
   const result = await write(
     `MERGE (proj:Project {id: $id})
      SET proj.name = $name,
          proj.description = $description,
-         proj.difficulty = $difficulty
+         proj.difficulty = $difficulty,
+         proj.githubUrl = $githubUrl,
+         proj.demoUrl = $demoUrl,
+         proj.role = $role,
+         proj.status = $status
      RETURN proj`,
-    { id, name, description, difficulty }
+    {
+      id,
+      name,
+      description: description || null,
+      difficulty: difficulty || 'Intermediate',
+      githubUrl: githubUrl || null,
+      demoUrl: demoUrl || null,
+      role: role || null,
+      status: status || 'Completed',
+    }
   );
   return result.records[0].get('proj').properties;
 }
 
-// ─── Link technology to project ──────────────────────────────────────────────
-async function linkTechnologyToProject(projectId, technologyId) {
+// ─── Link technology to project (Supports arbitrary technologies) ────────────
+async function linkTechnologyToProject(projectId, techNameOrId) {
+  if (!techNameOrId) return;
+  const normId = String(techNameOrId).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const techId = String(techNameOrId).startsWith('tech-') ? techNameOrId : `tech-${normId}`;
+  const techName = String(techNameOrId).startsWith('tech-')
+    ? techNameOrId.replace(/^tech-/, '')
+    : techNameOrId;
+
   await write(
-    `MATCH (proj:Project {id: $projectId}), (t:Technology {id: $technologyId})
+    `MATCH (proj:Project {id: $projectId})
+     MERGE (t:Technology {id: $techId})
+     ON CREATE SET t.name = $techName, t.category = 'General'
      MERGE (proj)-[:USES_TECHNOLOGY]->(t)`,
-    { projectId, technologyId }
+    { projectId, techId, techName }
   );
 }
 
