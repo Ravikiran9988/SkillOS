@@ -12,13 +12,61 @@ const projectsRouter = require('./routes/projects');
 
 const app = express();
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+// ─── CORS Configuration ───────────────────────────────────────────────────────
+const allowedOrigins = [
+  'https://skill-os-vert.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://localhost:3000',
+];
+
+if (process.env.CLIENT_ORIGIN) {
+  process.env.CLIENT_ORIGIN.split(',').forEach((o) => {
+    const trimmed = o.trim();
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
+  });
+}
+
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) ||
+      /^https:\/\/skill-os-.*\.vercel\.app$/.test(origin) ||
+      /^https:\/\/.*-ravikiran9988.*\.vercel\.app$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS origin ${origin} not allowed`));
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 app.use(express.json());
 app.use(morgan('dev'));
+
+// ─── Root Info ────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    name: 'SkillOS Graph API',
+    status: 'online',
+    health: '/api/health',
+    version: '1.0.0',
+  });
+});
+
+app.get('/api', (req, res) => {
+  res.json({
+    name: 'SkillOS Graph API',
+    status: 'online',
+    health: '/api/health',
+    version: '1.0.0',
+  });
+});
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/health', healthRouter);

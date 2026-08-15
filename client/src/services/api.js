@@ -1,8 +1,23 @@
 import axios from 'axios';
 
+const getBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl || typeof envUrl !== 'string' || envUrl.trim() === '') {
+    return '/api';
+  }
+  let url = envUrl.trim();
+  if (url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
+  if (!url.endsWith('/api') && url !== '/api') {
+    url = `${url}/api`;
+  }
+  return url;
+};
+
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 15000,
+  baseURL: getBaseUrl(),
+  timeout: 25000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -14,7 +29,7 @@ api.interceptors.response.use(
       err.response?.data?.message ||
       (err.code === 'ERR_NETWORK'
         ? 'Cannot reach the SkillOS server. Is it running?'
-        : 'An unexpected error occurred.');
+        : err.message || 'An unexpected error occurred.');
     const status = err.response?.status || 0;
     const error = new Error(message);
     error.status = status;

@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "SkillOS — Student Skill & Career Intelligence Graph",
   "scripts": {
-    "seed": "npm --prefix server run seed",
-    "server": "npm --prefix server run dev",
-    "client": "npm --prefix client run dev",
-    "build": "npm --prefix client run build",
+    "start": "node server/src/server.js",
+    "seed": "node server/scripts/seed.js",
+    "server": "node server/src/server.js",
+    "client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
     "test:e2e": "playwright test",
+    "test:e2e:prod": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report"
   },
