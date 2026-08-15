@@ -1,0 +1,32 @@
+{
+  "name": "skillos-server",
+  "version": "1.0.0",
+  "description": "SkillOS backend — Student Skill & Career Intelligence Graph API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node scripts/seed.js",
+    "test": "node scripts/testEndpoints.js",
+    "test:api": "node scripts/testEndpoints.js",
+    "test:graph": "node scripts/testGraphQueries.js",
+    "test:edge": "node scripts/testEdgeCases.js",
+    "test:idempotency": "node scripts/testIdempotency.js",
+    "test:journey": "node scripts/testUserJourney.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "morgan": "^1.10.0",
+    "neo4j-driver": "^5.21.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "playwright-core": "^1.62.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
