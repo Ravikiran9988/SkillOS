@@ -52,8 +52,10 @@ async function runSecurityAndDataTests() {
   console.log('🔒 SkillOS Comprehensive Security, IDOR, Auth & Data Audit');
   console.log('🔒 ==========================================================\n');
 
-  const server = app.listen(3096);
-  const port = 3096;
+  const server = app.listen(0);
+  const port = await new Promise((resolve) => {
+    server.on('listening', () => resolve(server.address().port));
+  });
 
   let passed = 0;
   let failed = 0;

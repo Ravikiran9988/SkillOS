@@ -50,8 +50,10 @@ async function runRegistrationAndOtpTests() {
   console.log('📧 SkillOS Registration & Email OTP Verification Audit');
   console.log('📧 ==========================================================\n');
 
-  const server = app.listen(3092);
-  const port = 3092;
+  const server = app.listen(0);
+  const port = await new Promise((resolve) => {
+    server.on('listening', () => resolve(server.address().port));
+  });
 
   let passed = 0;
   let failed = 0;

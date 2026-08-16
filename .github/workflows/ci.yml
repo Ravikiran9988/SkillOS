@@ -29,6 +29,11 @@ jobs:
       NODE_ENV: test
       VITE_API_URL: http://localhost:3001
       PLAYWRIGHT_BASE_URL: http://localhost:5173
+      EMAIL_PROVIDER: mock
+      SMTP_HOST: smtppro.zoho.in
+      SMTP_PORT: 587
+      SMTP_USER: admin@kiranverse.tech
+      SMTP_FROM: "KiranVerse <admin@kiranverse.tech>"
 
     steps:
       - name: 1. Checkout repository
