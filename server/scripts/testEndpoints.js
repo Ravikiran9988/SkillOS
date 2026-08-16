@@ -41,8 +41,10 @@ function req(port, method, path, body = null, token = null) {
 
 async function runTests() {
   console.log('🧪 Starting SkillOS Live End-to-End API Test Suite against CognoDB...\n');
-  const server = app.listen(3098);
-  const port = 3098;
+  const server = app.listen(0);
+  const port = await new Promise((resolve) => {
+    server.on('listening', () => resolve(server.address().port));
+  });
 
   let passed = 0;
   let failed = 0;

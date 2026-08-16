@@ -25,6 +25,9 @@ jobs:
       COGNODB_PASSWORD: ${{ secrets.COGNODB_PASSWORD || secrets.NEO4J_PASSWORD }}
       JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-jwt-secret-key-64-bytes-long-super-secure-key-12345' }}
       JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET || 'ci-test-jwt-refresh-secret-key-64-bytes-long-super-secure-key-67890' }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: openai/gpt-oss-120b
+      LLM_PROVIDER: groq
       PORT: 3001
       NODE_ENV: test
       VITE_API_URL: http://localhost:3001

@@ -41,8 +41,10 @@ function req(port, method, path, body = null, token = null) {
 async function testFrontendUserJourney() {
   console.log('🌐 Starting Programmatic End-to-End User Journey Audit (Login → Dashboard → Profile → Career → Jobs → Projects → Graph)...\n');
 
-  const server = app.listen(3095);
-  const port = 3095;
+  const server = app.listen(0);
+  const port = await new Promise((resolve) => {
+    server.on('listening', () => resolve(server.address().port));
+  });
 
   let passed = 0;
   let failed = 0;

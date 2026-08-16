@@ -39,9 +39,9 @@ function toNum(val, defaultVal = 0) {
 function getDriver() {
   if (driver) return driver;
 
-  const uri = process.env.COGNODB_URI;
-  const username = process.env.COGNODB_USERNAME || 'cognodb';
-  const password = process.env.COGNODB_PASSWORD;
+  const uri = process.env.COGNODB_URI || process.env.NEO4J_URI;
+  const username = process.env.COGNODB_USERNAME || process.env.NEO4J_USERNAME || 'cognodb';
+  const password = process.env.COGNODB_PASSWORD || process.env.NEO4J_PASSWORD;
 
   if (!uri || !password || uri.includes('db-xxxxxxxx')) {
     throw new Error(

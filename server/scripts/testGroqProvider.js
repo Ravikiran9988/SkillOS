@@ -52,8 +52,10 @@ async function runGroqAndAiTests() {
   console.log('🤖 SkillOS Groq LLM Provider & CognoDB Grounding Audit');
   console.log('🤖 ==========================================================\n');
 
-  const server = app.listen(3094);
-  const port = 3094;
+  const server = app.listen(0);
+  const port = await new Promise((resolve) => {
+    server.on('listening', () => resolve(server.address().port));
+  });
 
   let passed = 0;
   let failed = 0;
