@@ -95,12 +95,19 @@ api.interceptors.response.use(
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const login = (data) => api.post('/auth/login', data).then((r) => r.data);
 export const register = (data) => api.post('/auth/register', data).then((r) => r.data);
+export const sendOtp = (email, purpose = 'authentication') =>
+  api.post('/auth/send-otp', { email, purpose }).then((r) => r.data);
+export const verifyOtp = (email, otp, purpose = 'authentication') =>
+  api.post('/auth/verify-otp', { email, otp, purpose }).then((r) => r.data);
 export const getMe = () => api.get('/auth/me').then((r) => r.data.student);
 export const refreshToken = (rt) => api.post('/auth/refresh', { refreshToken: rt }).then((r) => r.data);
 export const logoutApi = (rt) => api.post('/auth/logout', { refreshToken: rt }).then((r) => r.data);
 export const forgotPassword = (email) => api.post('/auth/forgot-password', { email }).then((r) => r.data);
 export const resetPassword = (data) => api.post('/auth/reset-password', data).then((r) => r.data);
-export const verifyEmail = (token) => api.post('/auth/verify-email', { token }).then((r) => r.data);
+export const verifyEmail = (data) =>
+  api.post('/auth/verify-email', typeof data === 'string' ? { token: data } : data).then((r) => r.data);
+export const resendVerification = (email) =>
+  api.post('/auth/resend-verification', { email }).then((r) => r.data);
 export const getDemoStudents = () => api.get('/auth/demo-students').then((r) => r.data.students);
 
 // ─── Health ───────────────────────────────────────────────────────────────────

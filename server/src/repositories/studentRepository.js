@@ -46,15 +46,72 @@ async function getStudentById(personId) {
   };
 }
 
+// ─── Get student by email ───────────────────────────────────────────────────
+async function getStudentByEmail(email) {
+  if (!email) return null;
+  const result = await read(
+    `MATCH (p:Person)
+     WHERE toLower(p.email) = toLower($email)
+     OPTIONAL MATCH (p)-[:TARGETS]->(cr:CareerRole)
+     RETURN p, cr
+     LIMIT 1`,
+    { email: String(email).trim() }
+  );
+  if (result.records.length === 0) return null;
+  const rec = result.records[0];
+  return {
+    ...rec.get('p').properties,
+    targetCareer: rec.get('cr') ? rec.get('cr').properties : null,
+  };
+}
+
 // ─── Create a new student ───────────────────────────────────────────────────
-async function createStudent({ id, name, email, educationLevel }) {
+async function createStudent(data) {
+  const {
+    id,
+    name,
+    email,
+    passwordHash,
+    phone,
+    educationLevel,
+    college,
+    graduationYear,
+    emailVerified,
+    role,
+  } = data || {};
+
+  const studentId = id || `student-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  const normalizedName = (name || '').trim();
+
   const result = await write(
-    `MERGE (p:Person {id: $id})
-     SET p.name = $name,
-         p.email = $email,
-         p.educationLevel = $educationLevel
+    `CREATE (p:Person {
+       id: $studentId,
+       name: $name,
+       email: $email,
+       passwordHash: $passwordHash,
+       phone: $phone,
+       educationLevel: $educationLevel,
+       college: $college,
+       university: $college,
+       graduationYear: $graduationYear,
+       emailVerified: $emailVerified,
+       role: $role,
+       createdAt: datetime()
+     })
      RETURN p`,
-    { id, name, email, educationLevel }
+    {
+      studentId,
+      name: normalizedName,
+      email: normalizedEmail,
+      passwordHash: passwordHash || null,
+      phone: phone || null,
+      educationLevel: educationLevel || "Bachelor's",
+      college: college || null,
+      graduationYear: graduationYear !== undefined && graduationYear !== null ? graduationYear : null,
+      emailVerified: Boolean(emailVerified),
+      role: role || 'student',
+    }
   );
   return result.records[0].get('p').properties;
 }
@@ -63,6 +120,7 @@ async function createStudent({ id, name, email, educationLevel }) {
 async function updateStudent(personId, data) {
   const {
     name,
+    email,
     headline,
     bio,
     phone,
@@ -85,11 +143,16 @@ async function updateStudent(personId, data) {
     education,
     experience,
     certifications,
-  } = data;
+    passwordHash,
+    emailVerified,
+  } = data || {};
 
   const result = await write(
     `MATCH (p:Person {id: $personId})
      SET p.name = COALESCE($name, p.name),
+         p.email = COALESCE($email, p.email),
+         p.passwordHash = COALESCE($passwordHash, p.passwordHash),
+         p.emailVerified = CASE WHEN $emailVerified IS NOT NULL THEN $emailVerified ELSE p.emailVerified END,
          p.headline = COALESCE($headline, p.headline),
          p.bio = COALESCE($bio, p.bio),
          p.phone = COALESCE($phone, p.phone),
@@ -117,6 +180,9 @@ async function updateStudent(personId, data) {
     {
       personId,
       name: name || null,
+      email: email ? email.trim().toLowerCase() : null,
+      passwordHash: passwordHash || null,
+      emailVerified: emailVerified !== undefined ? Boolean(emailVerified) : null,
       headline: headline || null,
       bio: bio || null,
       phone: phone || null,
@@ -384,6 +450,7 @@ async function markNotificationRead(personId, notifId) {
 module.exports = {
   getAllStudents,
   getStudentById,
+  getStudentByEmail,
   createStudent,
   updateStudent,
   getStudentSkills,

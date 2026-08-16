@@ -5,8 +5,9 @@ import * as api from '../services/api';
 import {
   Sparkles, ArrowRight, Eye, EyeOff, Shield, CheckCircle2,
   Mail, Lock, User, Phone, GraduationCap, Building2, Calendar,
-  AlertCircle,
+  AlertCircle, KeyRound, Key, RefreshCw,
 } from 'lucide-react';
+import OtpInput from '../components/ui/OtpInput';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -69,10 +70,11 @@ function PasswordInput({ id, value, onChange, placeholder, autoComplete }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function LoginPage() {
-  const { login, register: registerUser, loginAsStudent, isAuthenticated } = useAuth();
+  const { login, loginWithOtp, register: registerUser, loginAsStudent, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [authMethod, setAuthMethod] = useState('password'); // 'password' | 'otp'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [demoStudents, setDemoStudents] = useState([]);
@@ -81,6 +83,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+
+  // OTP Login state
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSuccess, setOtpSuccess] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(60);
 
   // Register form
   const [reg, setReg] = useState({
@@ -105,10 +112,52 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login({ email, password });
+      const res = await login({ email, password });
+      if (res?.requiresVerification) {
+        navigate('/verify-email', { state: { email: email.trim() } });
+        return;
+      }
       navigate('/');
     } catch (err) {
+      if (err.data?.requiresVerification) {
+        navigate('/verify-email', { state: { email: email.trim() } });
+        return;
+      }
       setError(err.message || 'Invalid email or password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (e) => {
+    if (e) e.preventDefault();
+    if (!email || !email.includes('@')) {
+      setError('A valid email address is required.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setOtpSuccess('');
+    try {
+      const res = await api.sendOtp(email, 'login');
+      setOtpSent(true);
+      setOtpSuccess(res.message || 'Verification code sent to your email.');
+      if (res.retryAfter) setOtpCooldown(res.retryAfter);
+    } catch (err) {
+      setError(err.message || 'Failed to send verification code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (code) => {
+    setLoading(true);
+    setError('');
+    try {
+      await loginWithOtp({ email, otp: code });
+      navigate('/');
+    } catch (err) {
+      setError(err.message || 'Invalid or expired verification code.');
     } finally {
       setLoading(false);
     }
@@ -122,8 +171,12 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await registerUser(reg);
-      navigate('/');
+      const res = await registerUser(reg);
+      if (res?.requiresVerification) {
+        navigate('/verify-email', { state: { email: reg.email.trim() } });
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -188,7 +241,7 @@ export default function LoginPage() {
             {['login', 'register'].map((m) => (
               <button
                 key={m}
-                onClick={() => { setMode(m); setError(''); }}
+                onClick={() => { setMode(m); setError(''); setOtpSent(false); }}
                 className={`flex-1 pb-3 text-sm font-semibold transition-all ${
                   mode === m
                     ? 'border-b-2 border-[var(--accent)] text-[var(--accent)]'
@@ -215,145 +268,244 @@ export default function LoginPage() {
 
           {/* ── Login Form ────────────────────────────────────────────────── */}
           {mode === 'login' ? (
-            <form onSubmit={handleLogin} className="space-y-4" noValidate>
-              <Field label="Email" id="login-email">
-                <TextInput
-                  id="login-email"
-                  icon={Mail}
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  autoComplete="email"
-                  required
-                />
-              </Field>
-
-              <Field label="Password" id="login-password">
-                <PasswordInput
-                  id="login-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Your password"
-                  autoComplete="current-password"
-                />
-              </Field>
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded accent-[var(--accent)]"
-                  />
-                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Remember me</span>
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm font-medium hover:underline"
-                  style={{ color: 'var(--accent)' }}
+            <div className="space-y-4">
+              {/* Method Switcher: Password vs OTP */}
+              <div className="flex p-1 rounded-xl mb-4" style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)' }}>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMethod('password'); setError(''); }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                    authMethod === 'password'
+                      ? 'shadow-sm text-white'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                  style={authMethod === 'password' ? { background: 'var(--accent)' } : {}}
                 >
-                  Forgot password?
-                </Link>
+                  <Lock className="w-3.5 h-3.5" /> Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMethod('otp'); setError(''); }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                    authMethod === 'otp'
+                      ? 'shadow-sm text-white'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                  style={authMethod === 'otp' ? { background: 'var(--accent)' } : {}}
+                >
+                  <KeyRound className="w-3.5 h-3.5" /> Email OTP
+                </button>
               </div>
 
-              <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
-                {loading ? 'Signing in…' : 'Continue to SkillOS'}
-                {!loading && <ArrowRight className="w-4 h-4" />}
-              </button>
-            </form>
-
-          ) : (
-            /* ── Register Form ──────────────────────────────────────────────── */
-            <form onSubmit={handleRegister} className="space-y-4" noValidate>
-              <div className="grid grid-cols-1 gap-4">
-                <Field label="Full Name *" id="reg-name">
-                  <TextInput id="reg-name" icon={User} value={reg.name} onChange={r('name')}
-                    placeholder="e.g. Ravi Kiran" autoComplete="name" required />
-                </Field>
-
-                <Field label="Email *" id="reg-email">
-                  <TextInput id="reg-email" icon={Mail} type="email" value={reg.email} onChange={r('email')}
-                    placeholder="your@email.com" autoComplete="email" required />
-                </Field>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Password *" id="reg-password">
-                    <PasswordInput id="reg-password" value={reg.password} onChange={r('password')}
-                      placeholder="8+ characters" autoComplete="new-password" />
+              {authMethod === 'password' ? (
+                <form onSubmit={handleLogin} className="space-y-4" noValidate>
+                  <Field label="Email" id="login-email">
+                    <TextInput
+                      id="login-email"
+                      icon={Mail}
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      autoComplete="email"
+                      required
+                    />
                   </Field>
-                  <Field label="Confirm Password *" id="reg-confirm">
-                    <PasswordInput id="reg-confirm" value={reg.confirmPassword} onChange={r('confirmPassword')}
-                      placeholder="Repeat password" autoComplete="new-password" />
+
+                  <Field label="Password" id="login-password">
+                    <PasswordInput
+                      id="login-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Your password"
+                      autoComplete="current-password"
+                    />
                   </Field>
+
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded accent-[var(--accent)]"
+                      />
+                      <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Remember me</span>
+                    </label>
+                    <Link
+                      to="/forgot-password"
+                      className="text-sm font-medium hover:underline"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn-primary w-full py-3 text-base flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Signing in…
+                      </span>
+                    ) : (
+                      <>Sign In <ArrowRight className="w-4 h-4" /></>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                /* OTP Login Form */
+                <div className="space-y-4">
+                  {!otpSent ? (
+                    <form onSubmit={handleSendOtp} className="space-y-4" noValidate>
+                      <Field label="Email Address" id="otp-email">
+                        <TextInput
+                          id="otp-email"
+                          icon={Mail}
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="your@email.com"
+                          autoComplete="email"
+                          required
+                        />
+                      </Field>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        We will send a 6-digit verification code to your email via Zoho SMTP.
+                      </p>
+                      <button
+                        type="submit"
+                        disabled={loading || !email}
+                        className="btn-primary w-full py-3 text-base flex items-center justify-center gap-2"
+                      >
+                        {loading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Sending Code…
+                          </span>
+                        ) : (
+                          <>Send Verification Code <ArrowRight className="w-4 h-4" /></>
+                        )}
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="space-y-4 animate-fade-in">
+                      <div className="text-center">
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                          Enter the 6-digit code sent to <strong className="text-[var(--text-primary)]">{email}</strong>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => { setOtpSent(false); setError(''); }}
+                          className="text-xs font-semibold mt-1 hover:underline"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          Change Email
+                        </button>
+                      </div>
+
+                      <OtpInput
+                        email={email}
+                        onComplete={handleVerifyOtp}
+                        onResend={() => handleSendOtp()}
+                        loading={loading}
+                        error={error}
+                        successMessage={otpSuccess}
+                        resendCooldown={otpCooldown}
+                      />
+                    </div>
+                  )}
                 </div>
+              )}
+            </div>
+          ) : (
+            /* ── Register Form ────────────────────────────────────────────── */
+            <form onSubmit={handleRegister} className="space-y-4" noValidate>
+              <Field label="Full Name *" id="reg-name">
+                <TextInput id="reg-name" icon={User} value={reg.name} onChange={r('name')} placeholder="Aarav Sharma" required />
+              </Field>
 
-                <Field label="Phone (optional)" id="reg-phone">
-                  <TextInput id="reg-phone" icon={Phone} type="tel" value={reg.phone} onChange={r('phone')}
-                    placeholder="+91 98765 43210" autoComplete="tel" />
+              <Field label="Email Address *" id="reg-email">
+                <TextInput id="reg-email" icon={Mail} type="email" value={reg.email} onChange={r('email')} placeholder="aarav@example.com" required />
+              </Field>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Password *" id="reg-password">
+                  <PasswordInput id="reg-password" value={reg.password} onChange={r('password')} placeholder="8+ characters" autoComplete="new-password" />
                 </Field>
+                <Field label="Confirm Password *" id="reg-confirm">
+                  <PasswordInput id="reg-confirm" value={reg.confirmPassword} onChange={r('confirmPassword')} placeholder="Repeat password" autoComplete="new-password" />
+                </Field>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Education Level" id="reg-edu">
                   <div className="relative">
                     <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
-                    <select id="reg-edu" value={reg.educationLevel} onChange={r('educationLevel')}
-                      className="input" style={{ paddingLeft: '2.25rem' }}>
-                      <option value="Bachelor's">Bachelor's Degree</option>
-                      <option value="Master's">Master's Degree</option>
-                      <option value="PhD">Doctorate / PhD</option>
-                      <option value="Diploma">Diploma</option>
-                      <option value="Bootcamp">Coding Bootcamp</option>
-                      <option value="Self-Taught">Self-Taught</option>
+                    <select id="reg-edu" value={reg.educationLevel} onChange={r('educationLevel')} className="input" style={{ paddingLeft: '2.25rem' }}>
+                      <option>Bachelor's</option>
+                      <option>Master's</option>
+                      <option>PhD</option>
+                      <option>High School</option>
+                      <option>Other</option>
                     </select>
                   </div>
                 </Field>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="College/University" id="reg-college">
-                    <TextInput id="reg-college" icon={Building2} value={reg.college} onChange={r('college')}
-                      placeholder="e.g. IIT Bombay" />
-                  </Field>
-                  <Field label="Graduation Year" id="reg-grad">
-                    <TextInput id="reg-grad" icon={Calendar} type="number" value={reg.graduationYear} onChange={r('graduationYear')}
-                      placeholder="2025" min="2000" max="2035" />
-                  </Field>
-                </div>
+                <Field label="Graduation Year" id="reg-grad">
+                  <TextInput id="reg-grad" icon={Calendar} type="number" value={reg.graduationYear} onChange={r('graduationYear')} placeholder="2026" min="2000" max="2035" />
+                </Field>
               </div>
 
-              <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
-                {loading ? 'Creating account…' : 'Get Started'}
-                {!loading && <ArrowRight className="w-4 h-4" />}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="College / University" id="reg-college">
+                  <TextInput id="reg-college" icon={Building2} value={reg.college} onChange={r('college')} placeholder="IIT Delhi" />
+                </Field>
+                <Field label="Phone Number" id="reg-phone">
+                  <TextInput id="reg-phone" icon={Phone} type="tel" value={reg.phone} onChange={r('phone')} placeholder="+91 98765 43210" />
+                </Field>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full py-3 text-base flex items-center justify-center gap-2 mt-2"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating account…
+                  </span>
+                ) : (
+                  <>Create Account <ArrowRight className="w-4 h-4" /></>
+                )}
               </button>
             </form>
           )}
 
-          {/* ── Demo Personas (DEV ONLY) ───────────────────────────────────── */}
+          {/* ── Demo Quick Login (Development Only) ────────────────────────── */}
           {IS_DEV && demoStudents.length > 0 && (
-            <div className="mt-6 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
-              <div className="text-xs font-semibold mb-3 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                <Sparkles className="w-3 h-3" style={{ color: 'var(--accent)' }} />
-                Dev Mode — Quick Demo Login
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {demoStudents.slice(0, 4).map((s) => (
+            <div className="mt-6 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-2.5 text-center" style={{ color: 'var(--text-muted)' }}>
+                ⚡ Dev Quick-Login (Select Student)
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-0.5">
+                {demoStudents.map((s) => (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => handleDemoLogin(s.id)}
                     disabled={loading}
-                    className="p-2.5 rounded-xl text-left transition-all duration-150 group"
-                    style={{
-                      background: 'var(--surface-hover)',
-                      border: '1px solid var(--border)',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+                    className="p-2 rounded-xl text-left text-xs font-medium transition-all"
+                    style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
                   >
-                    <div className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>{s.name}</div>
-                    <div className="text-[11px] truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      {s.targetCareer?.title || s.educationLevel}
-                    </div>
+                    <div className="font-semibold truncate">{s.name}</div>
+                    <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{s.email}</div>
                   </button>
                 ))}
               </div>
@@ -362,10 +514,10 @@ export default function LoginPage() {
         </div>
 
         {/* Security badge */}
-        <div className="text-center mt-5 flex items-center justify-center gap-1.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-          <Shield className="w-3.5 h-3.5" style={{ color: 'var(--success)' }} />
-          End-to-End Isolated Career Intelligence
-        </div>
+        <p className="text-xs text-center mt-6 flex items-center justify-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+          <Shield className="w-3.5 h-3.5 text-emerald-500" />
+          Secured with 256-bit encryption & Zoho SMTP delivery
+        </p>
       </div>
     </div>
   );

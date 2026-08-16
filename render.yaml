@@ -30,7 +30,17 @@ services:
       - key: COGNODB_PASSWORD
         sync: false
       - key: EMAIL_PROVIDER
-        value: console
+        value: smtp
+      - key: SMTP_HOST
+        value: smtppro.zoho.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: admin@kiranverse.tech
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        value: "KiranVerse <admin@kiranverse.tech>"
       - key: LLM_PROVIDER
         value: groq
       - key: GROQ_API_KEY

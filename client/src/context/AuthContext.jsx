@@ -123,10 +123,40 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginWithOtp = async ({ email, otp }) => {
+    setLoading(true);
+    try {
+      const res = await api.verifyOtp(email, otp, 'login');
+      if (res?.accessToken && res?.student) {
+        setToken(res.accessToken);
+        setUser(res.student);
+        persistSession(res.accessToken, res.student, res.refreshToken);
+      }
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const register = async (data) => {
     setLoading(true);
     try {
       const res = await api.register(data);
+      if (res?.accessToken && res?.student) {
+        setToken(res.accessToken);
+        setUser(res.student);
+        persistSession(res.accessToken, res.student, res.refreshToken);
+      }
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyEmailOtp = async ({ email, otp }) => {
+    setLoading(true);
+    try {
+      const res = await api.verifyEmail({ email, otp });
       if (res?.accessToken && res?.student) {
         setToken(res.accessToken);
         setUser(res.student);
@@ -166,8 +196,10 @@ export function AuthProvider({ children }) {
         isAuthenticated: !!token && !!user,
         loading,
         login,
+        loginWithOtp,
         loginAsStudent, // dev-only; not shown in prod UI
         register,
+        verifyEmailOtp,
         logout,
         updateUser,
         forgotPassword,
