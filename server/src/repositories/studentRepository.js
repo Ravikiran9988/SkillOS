@@ -298,10 +298,94 @@ async function getStudentGraphData(personId) {
   };
 }
 
+// ─── Saved Items (Graph-backed) ───────────────────────────────────────────
+async function getSavedItems(personId) {
+  const result = await read(
+    `MATCH (p:Person {id: $personId})-[r:SAVED]->()
+     RETURN r.id AS id, r.type AS type, r.savedAt AS savedAt,
+            r.itemId AS itemId, r.title AS title, r.name AS name
+     ORDER BY r.savedAt DESC`,
+    { personId }
+  );
+  return result.records.map((rec) => ({
+    id: rec.get('id') || rec.get('itemId'),
+    type: rec.get('type') || 'careers',
+    savedAt: rec.get('savedAt'),
+    itemId: rec.get('itemId'),
+    title: rec.get('title') || rec.get('name'),
+    name: rec.get('name') || rec.get('title'),
+  }));
+}
+
+async function saveItem(personId, { type, itemId }) {
+  const savedId = `save-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const now = new Date().toISOString();
+  
+  await write(
+    `MATCH (p:Person {id: $personId})
+     OPTIONAL MATCH (item {id: $itemId})
+     MERGE (p)-[r:SAVED {itemId: $itemId}]->(p)
+     SET r.id = COALESCE(r.id, $savedId),
+         r.type = $type,
+         r.savedAt = COALESCE(r.savedAt, $now),
+         r.title = COALESCE(item.title, item.name, $itemId),
+         r.name = COALESCE(item.name, item.title, $itemId)
+     RETURN r`,
+    { personId, itemId, type: type || 'careers', savedId, now }
+  );
+
+  return { id: savedId, type: type || 'careers', itemId, savedAt: now };
+}
+
+async function removeSavedItem(personId, savedId) {
+  await write(
+    `MATCH (p:Person {id: $personId})-[r:SAVED]->()
+     WHERE r.id = $savedId OR r.itemId = $savedId
+     DELETE r`,
+    { personId, savedId }
+  );
+  return { success: true };
+}
+
+// In-memory store for student in-app notifications
+const studentNotifications = new Map();
+
+async function getNotifications(personId) {
+  if (!studentNotifications.has(personId)) {
+    studentNotifications.set(personId, [
+      {
+        id: `notif-1-${personId}`,
+        title: 'Welcome to SkillOS!',
+        message: 'Your personal AI Career Copilot and graph intelligence are active.',
+        read: false,
+        time: 'Just now',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: `notif-2-${personId}`,
+        title: 'Roadmap Ready',
+        message: 'Check your personalized skill progression path.',
+        read: false,
+        time: '1h ago',
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }
+  return studentNotifications.get(personId);
+}
+
+async function markNotificationRead(personId, notifId) {
+  const list = studentNotifications.get(personId) || [];
+  const notif = list.find((n) => n.id === notifId);
+  if (notif) notif.read = true;
+  return { success: true };
+}
+
 module.exports = {
   getAllStudents,
   getStudentById,
   createStudent,
+  updateStudent,
   getStudentSkills,
   addStudentSkill,
   removeStudentSkill,
@@ -311,4 +395,9 @@ module.exports = {
   getCareerMatches,
   getMissingSkills,
   getStudentGraphData,
+  getSavedItems,
+  saveItem,
+  removeSavedItem,
+  getNotifications,
+  markNotificationRead,
 };

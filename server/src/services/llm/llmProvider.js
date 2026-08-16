@@ -1,273 +1,242 @@
 /**
  * SkillOS LLM Provider Abstraction
- * Supports configurable LLM endpoints (Gemini / OpenAI) with built-in
- * graph-grounded intelligent reasoning fallback when no API key is provided.
+ * Architecture:
+ *   careerCopilotService / resumeAiService / interviewAiService
+ *           ↓
+ *       llmProvider
+ *           ↓
+ *      groqProvider (Default: Groq)
+ *           ↓
+ *       Groq API
+ *
+ * Supports Groq as primary production provider with OpenAI/Gemini/Mock options
+ * and automatic CognoDB graph-grounded fallback when keys are absent.
  */
 
-const https = require('https');
-
-async function callOpenAI(apiKey, model, systemPrompt, userMessage) {
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({
-      model: model || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.7,
-      max_tokens: 800,
-    });
-
-    const req = https.request(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-      },
-      (res) => {
-        let data = '';
-        res.on('data', (c) => (data += c));
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(data);
-            if (json.choices && json.choices.length > 0) {
-              resolve(json.choices[0].message.content);
-            } else {
-              reject(new Error(json.error?.message || 'OpenAI API error'));
-            }
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
-
-async function callGemini(apiKey, model, systemPrompt, userMessage) {
-  const modelName = model || 'gemini-1.5-flash';
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: `${systemPrompt}\n\nUser Question: ${userMessage}` }],
-        },
-      ],
-    });
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-    const req = https.request(
-      url,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      },
-      (res) => {
-        let data = '';
-        res.on('data', (c) => (data += c));
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(data);
-            const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              resolve(text);
-            } else {
-              reject(new Error(json.error?.message || 'Gemini API response format error'));
-            }
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
+const groqProvider = require('./groqProvider');
 
 /**
- * Intelligent deterministic graph-grounded fallback reasoning engine
+ * Intelligent deterministic CognoDB graph-grounded fallback reasoning engine
  * Generates structured, highly personalized career advice based on the student's exact graph data.
  */
-function generateGraphGroundedResponse(context, userMessage) {
-  const { student, targetCareer, skills, gaps, roadmap, jobs, projects } = context;
-  const lowerQuery = userMessage.toLowerCase();
+function generateGraphGroundedFallback(context, userMessage) {
+  const { student, targetCareer, skills, gaps, roadmap, jobs, projects } = context || {};
+  const lowerQuery = (userMessage || '').toLowerCase();
 
-  const missingNames = gaps.missingSkills?.map((s) => s.name) || [];
-  const criticalGaps = gaps.missingSkills?.filter((s) => s.importance === 'critical').map((s) => s.name) || [];
+  const missingList = gaps?.missingSkills || [];
+  const missingNames = missingList.map((s) => s.name);
+  const criticalGaps = missingList.filter((s) => s.importance === 'critical' || s.importance === 'High').map((s) => s.name);
   const topJobs = jobs?.slice(0, 3) || [];
-  const topJobTitles = topJobs.map((j) => `${j.title} at ${j.company?.name || 'Top Company'}`).join(', ');
+  const verifiedSkillsList = (skills || []).map((s) => `${s.name} (${s.proficiency || 'Verified'})`);
 
-  // 1. "What should I learn next?" or prioritization
+  const facts = [
+    `Target Goal: ${targetCareer?.title || 'General Software Engineering'}`,
+    `Career Match: ${gaps?.matchPercentage || 0}%`,
+    `Verified Skills (${skills?.length || 0}): ${skills?.slice(0, 5).map(s => s.name).join(', ') || 'None'}`,
+    `Open Skill Gaps: ${missingNames.length} missing skills`,
+  ];
+
+  const recommendations = [];
+  let answer = '';
+
   if (
     lowerQuery.includes('learn next') ||
     lowerQuery.includes('prioritize') ||
     lowerQuery.includes('what should i do') ||
-    lowerQuery.includes('next step')
+    lowerQuery.includes('next step') ||
+    lowerQuery.includes('start')
   ) {
-    const nextSkill = roadmap?.sequence?.[0]?.name || missingNames[0] || 'advanced domain frameworks';
-    const topPrereq = roadmap?.sequence?.slice(0, 3).map((s, i) => `${i + 1}. **${s.name}** (Unlocks: ${s.prerequisiteOf || targetCareer?.title || 'next level'})`).join('\n') || '';
+    const nextSkill = roadmap?.sequence?.[0]?.name || roadmap?.orderedSkills?.[0]?.name || missingNames[0] || 'Domain Architecture';
+    recommendations.push(`Focus on mastering **${nextSkill}** as your highest-leverage milestone.`);
+    recommendations.push(`Build a real-world project incorporating ${nextSkill} to verify practical proficiency.`);
 
-    return {
-      message: `Based on your CognoDB career graph, **${nextSkill}** is your highest-priority competency.
+    answer = `Based on your CognoDB career graph, **${nextSkill}** is your #1 priority competency.
 
-You currently match **${gaps.matchPercentage || 0}%** of the requirements for **${targetCareer?.title || 'your target career'}**.
+You currently have a **${gaps?.matchPercentage || 0}% match** for **${targetCareer?.title || 'your target career'}** with **${skills?.length || 0} verified skills**.
 
-### Recommended Learning Sequence:
-${topPrereq || `1. Master ${nextSkill}\n2. Apply it to an open-source project`}
+### 🎯 Key Observations:
+- **Verified Strengths:** ${verifiedSkillsList.slice(0, 4).join(', ') || 'Initial foundation'}
+- **Critical Gaps:** ${criticalGaps.slice(0, 3).join(', ') || missingNames.slice(0, 3).join(', ') || 'None'}
 
-### Why this matters:
-- It directly resolves a ${criticalGaps.includes(nextSkill) ? 'critical' : 'high-priority'} requirement for **${targetCareer?.title || 'your goal'}**.
-- It is required by top matching roles like **${topJobTitles || 'open industry roles'}**.`,
-      actionLinks: [
-        { label: 'View Learning Roadmap', path: '/roadmap' },
-        { label: 'Inspect Skill Gap', path: '/skill-gap' },
-        { label: 'Explore Job Matches', path: '/jobs' },
-      ],
-    };
-  }
-
-  // 2. "Am I ready for [role]?" or readiness check
-  if (
+### 🚀 Immediate Next Step:
+Start with **${nextSkill}** in your learning roadmap. Mastering this milestone unlocks subsequent advanced topics and increases your match score across matching job openings.`;
+  } else if (
     lowerQuery.includes('ready') ||
-    lowerQuery.includes('prepared') ||
-    lowerQuery.includes('chance') ||
-    lowerQuery.includes('readiness')
+    lowerQuery.includes('readiness') ||
+    lowerQuery.includes('prepared')
   ) {
-    const matchPct = gaps.matchPercentage || 0;
-    const isClose = matchPct >= 70;
+    const matchPct = gaps?.matchPercentage || 0;
+    const isReady = matchPct >= 75;
 
-    return {
-      message: `### Job Readiness Assessment for ${targetCareer?.title || 'Target Role'}
+    recommendations.push(isReady ? 'Prepare for technical interviews' : 'Focus on closing top 2 critical skill gaps');
+    recommendations.push('Review portfolio projects demonstrating core required skills');
 
-Your current verified match is **${matchPct}%**.
+    answer = `### Career Readiness Evaluation for ${targetCareer?.title || 'Target Role'}
 
-- **Verified Strengths**: ${skills?.map((s) => `${s.name} (${s.proficiency})`).join(', ') || 'None listed yet'}.
-- **Key Competencies Needed**: ${missingNames.slice(0, 4).join(', ') || 'All prerequisites met'}.
+Your computed career readiness is **${matchPct}%**.
 
-${
-  isClose
-    ? `You have a strong foundation! Focusing on **${missingNames[0] || 'final project work'}** will make you highly competitive for entry-level and junior positions.`
-    : `You are in active development. By following your personalized prerequisite roadmap, you can systematically bridge the remaining ${missingNames.length} missing skills.`
-}`,
-      actionLinks: [
-        { label: 'Check Skill Gaps', path: '/skill-gap' },
-        { label: 'View Matching Jobs', path: '/jobs' },
-        { label: 'Open Career Roadmap', path: '/roadmap' },
-      ],
-    };
+- **Status:** ${isReady ? '✅ Strong Candidate — You meet majority of core requirements' : '⚠️ Growth Phase — Key technical skills needed before applying'}
+- **Verified Portfolio Competencies:** ${skills?.length || 0} skills verified
+- **Remaining Prerequisites:** ${missingNames.length} skills to acquire
+
+**Recommended Focus:** Close your high-priority gaps in ${criticalGaps.slice(0, 2).join(' and ') || missingNames.slice(0, 2).join(' and ') || 'specialized tools'} to cross the 80% readiness threshold.`;
+  } else {
+    // General graph-grounded advisory
+    recommendations.push(`Align your learning roadmap with ${targetCareer?.title || 'your chosen career track'}.`);
+    recommendations.push(`Review open job requirements to prioritize hands-on practice.`);
+
+    answer = `I have analyzed your live CognoDB career intelligence profile.
+
+- **Current Track:** ${targetCareer?.title || 'Exploring Careers'} (${gaps?.matchPercentage || 0}% Match)
+- **Top Competencies:** ${skills?.slice(0, 4).map(s => s.name).join(', ') || 'Profile under setup'}
+- **Top Missing Skills:** ${missingNames.slice(0, 3).join(', ') || 'No critical gaps identified'}
+- **Available Job Matches:** ${topJobs.length > 0 ? `${topJobs.length} active opportunities found` : 'Complete more roadmap steps to unlock tier-1 jobs'}
+
+How can I help guide your next steps? You can ask about your roadmap, skill gaps, interview prep, or project recommendations.`;
   }
 
-  // 3. "Why is my career match only X%?"
-  if (
-    lowerQuery.includes('why') &&
-    (lowerQuery.includes('match') || lowerQuery.includes('%') || lowerQuery.includes('low') || lowerQuery.includes('only'))
-  ) {
-    return {
-      message: `Your career match with **${targetCareer?.title || 'your chosen role'}** is calculated at **${gaps.matchPercentage || 0}%** based on direct skill overlap in the CognoDB graph:
+  const actions = [
+    { label: 'View Skill Gap', route: '/skill-gap' },
+    { label: 'Open Roadmap', route: '/roadmap' },
+    { label: 'View Jobs', route: '/jobs' },
+  ];
 
-- **Skills You Have (${gaps.matchedCount || 0} / ${gaps.totalRequired || 0})**: ${gaps.matchedSkills?.map((s) => s.name).join(', ') || 'None yet'}.
-- **Missing Requirements (${gaps.missingSkills?.length || 0})**: ${missingNames.join(', ')}.
-
-${
-  criticalGaps.length > 0
-    ? `🔴 **Critical Blockers**: ${criticalGaps.join(', ')} are strictly required for this role.`
-    : 'All remaining gaps are high/medium priority and can be learned in parallel.'
-}`,
-      actionLinks: [
-        { label: 'Bridge Missing Skills', path: '/skill-gap' },
-        { label: 'Follow Roadmap', path: '/roadmap' },
-      ],
-    };
-  }
-
-  // 4. "What projects should I build / put on resume?"
-  if (lowerQuery.includes('project') || lowerQuery.includes('resume') || lowerQuery.includes('portfolio')) {
-    const missingSkill = missingNames[0] || 'Docker';
-    return {
-      message: `### Recommended Project Strategy for ${student?.name || 'you'}
-
-To strengthen your profile for **${targetCareer?.title || 'Target Career'}**, build a project that explicitly incorporates **${missingSkill}** alongside your existing stack (${skills?.slice(0, 2).map((s) => s.name).join(', ') || 'core skills'}).
-
-**Suggested Project Concept**:
-- **Goal**: Full-stack application demonstrating ${missingSkill} and ${skills?.[0]?.name || 'Python'}.
-- **Technologies**: ${skills?.[0]?.name || 'Python'}, ${missingSkill}, REST APIs, Git.
-- **Why**: SkillOS uses technology inference (Query H) to detect real-world competency from project tech stacks. Adding this will unlock inferred skills and improve your job match score.`,
-      actionLinks: [
-        { label: 'Add Project to SkillOS', path: '/projects' },
-        { label: 'View Inferred Skills', path: '/projects' },
-      ],
-    };
-  }
-
-  // 5. Default personalized overview
   return {
-    message: `Hello ${student?.name || 'there'}! I am your SkillOS Career Copilot.
-
-Here is your current career snapshot:
-- **Target Goal**: **${targetCareer?.title || 'Not selected yet'}**
-- **Match Score**: **${gaps.matchPercentage || 0}%** (${gaps.matchedCount || 0}/${gaps.totalRequired || 0} required skills)
-- **Verified Skills**: ${skills?.length || 0} skills in your portfolio
-- **Next High-Impact Competency**: **${missingNames[0] || 'Explore new frameworks'}**
-- **Top Job Opportunity**: ${topJobs[0] ? `${topJobs[0].title} at ${topJobs[0].company?.name}` : 'Check Jobs tab'}
-
-How can I help you accelerate your career preparation today?`,
-    actionLinks: [
-      { label: 'View Learning Roadmap', path: '/roadmap' },
-      { label: 'Inspect Skill Gaps', path: '/skill-gap' },
-      { label: 'Browse Jobs', path: '/jobs' },
-    ],
+    answer,
+    message: answer,
+    reply: answer,
+    content: answer,
+    facts,
+    recommendations,
+    actions,
+    actionLinks: actions.map(a => ({ label: a.label, path: a.route })),
+    model: 'cognodb-grounded-engine',
+    provider: 'cognodb-fallback',
+    usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
   };
 }
 
 /**
- * Main generateCompletion method
+ * Extract structured facts and recommendations from model text output
  */
-async function generateCompletion(systemPrompt, userMessage, context) {
-  const apiKey = process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
-  const provider = (process.env.LLM_PROVIDER || 'auto').toLowerCase();
-  const model = process.env.LLM_MODEL;
+function extractStructuredMetadata(rawText, context) {
+  const facts = [];
+  const recommendations = [];
 
-  if (apiKey) {
-    try {
-      if (provider === 'openai' || (!provider.includes('gemini') && apiKey.startsWith('sk-'))) {
-        const text = await callOpenAI(apiKey, model, systemPrompt, userMessage);
-        return {
-          message: text,
-          actionLinks: [
-            { label: 'View Roadmap', path: '/roadmap' },
-            { label: 'View Skill Gaps', path: '/skill-gap' },
-            { label: 'Job Matches', path: '/jobs' },
-          ],
-        };
-      } else {
-        const text = await callGemini(apiKey, model, systemPrompt, userMessage);
-        return {
-          message: text,
-          actionLinks: [
-            { label: 'View Roadmap', path: '/roadmap' },
-            { label: 'View Skill Gaps', path: '/skill-gap' },
-            { label: 'Job Matches', path: '/jobs' },
-          ],
-        };
+  if (context?.student?.name) {
+    facts.push(`Student: ${context.student.name}`);
+  }
+  if (context?.targetCareer?.title) {
+    facts.push(`Target Role: ${context.targetCareer.title}`);
+  }
+  if (context?.gaps?.matchPercentage !== undefined) {
+    facts.push(`Career Match: ${context.gaps.matchPercentage}%`);
+  }
+  if (context?.skills?.length) {
+    facts.push(`Verified Skills: ${context.skills.length}`);
+  }
+
+  // Parse lines for bulleted recommendations
+  const lines = rawText.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\d+\.\s/.test(trimmed)) {
+      const clean = trimmed.replace(/^[-*]|\d+\./, '').trim();
+      if (clean.length > 10 && clean.length < 150 && recommendations.length < 4) {
+        recommendations.push(clean);
       }
-    } catch (err) {
-      console.warn('External LLM API call failed, falling back to graph-grounded reasoning engine:', err.message);
     }
   }
 
-  // Fallback to graph-grounded deterministic engine
-  return generateGraphGroundedResponse(context, userMessage);
+  const actions = [
+    { label: 'View Skill Gap', route: '/skill-gap' },
+    { label: 'Open Roadmap', route: '/roadmap' },
+    { label: 'View Jobs', route: '/jobs' },
+  ];
+
+  return { facts, recommendations, actions };
+}
+
+/**
+ * Master LLM Completion Router
+ *
+ * @param {Object} options
+ * @param {string} options.systemPrompt - CognoDB-grounded system instructions
+ * @param {string} [options.userMessage] - Latest user input
+ * @param {Array<{role: string, content: string}>} [options.messages] - Conversation history
+ * @param {Object} [options.context] - CognoDB student graph context
+ * @param {number} [options.temperature=0.7] - Temperature
+ * @param {number} [options.maxTokens=1200] - Max tokens
+ * @param {string} [options.model] - Model name override
+ * @param {boolean} [options.fallbackOnFailure=true] - Fallback to deterministic engine on error
+ */
+async function generateCompletion({
+  systemPrompt,
+  userMessage,
+  messages = [],
+  context = {},
+  temperature = 0.7,
+  maxTokens = 1200,
+  model,
+  fallbackOnFailure = true,
+}) {
+  const provider = (process.env.LLM_PROVIDER || 'groq').toLowerCase().trim();
+
+  // Assemble message history
+  const messageSequence = [...messages];
+  if (userMessage && (!messageSequence.length || messageSequence[messageSequence.length - 1].content !== userMessage)) {
+    messageSequence.push({ role: 'user', content: userMessage });
+  }
+
+  // 1. Groq Provider (Primary)
+  if (provider === 'groq') {
+    try {
+      const groqResult = await groqProvider.generateResponse({
+        systemPrompt,
+        messages: messageSequence,
+        temperature,
+        maxTokens,
+        model: model || process.env.GROQ_MODEL,
+      });
+
+      const { facts, recommendations, actions } = extractStructuredMetadata(groqResult.text, context);
+
+      return {
+        answer: groqResult.text,
+        message: groqResult.text,
+        reply: groqResult.text,
+        content: groqResult.text,
+        facts,
+        recommendations,
+        actions,
+        actionLinks: actions.map((a) => ({ label: a.label, path: a.route })),
+        model: groqResult.model,
+        provider: 'groq',
+        usage: groqResult.usage,
+        latencyMs: groqResult.latencyMs,
+      };
+    } catch (err) {
+      console.warn(`[LLM/Router] Groq provider failed (${err.code || err.message}).`);
+
+      if (!fallbackOnFailure && process.env.NODE_ENV === 'production') {
+        throw err;
+      }
+      // Fallback to CognoDB-grounded deterministic engine
+      return generateGraphGroundedFallback(context, userMessage);
+    }
+  }
+
+  // 2. Mock Provider (for deterministic testing & CI)
+  if (provider === 'mock') {
+    return generateGraphGroundedFallback(context, userMessage);
+  }
+
+  // 3. Fallback / Unrecognized provider
+  console.warn(`[LLM/Router] Provider "${provider}" not directly configured. Using CognoDB reasoning engine.`);
+  return generateGraphGroundedFallback(context, userMessage);
 }
 
 module.exports = {
   generateCompletion,
+  generateGraphGroundedFallback,
 };

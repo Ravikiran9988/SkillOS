@@ -1,26 +1,85 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'skillos-student-jwt-secret-key-2026';
-const JWT_EXPIRES_IN = '7d';
+// ─── Secrets ──────────────────────────────────────────────────────────────────
+const JWT_ACCESS_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+
+if (!JWT_ACCESS_SECRET) {
+  console.error('[AUTH] FATAL: JWT_SECRET environment variable is not set. Refusing to start.');
+  if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
+const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+
+// Use a safe fallback ONLY in development (never production)
+const accessSecret =
+  JWT_ACCESS_SECRET ||
+  (process.env.NODE_ENV !== 'production'
+    ? 'dev-only-access-secret-DO-NOT-USE-IN-PROD'
+    : null);
+
+const refreshSecret =
+  JWT_REFRESH_SECRET ||
+  (process.env.NODE_ENV !== 'production'
+    ? 'dev-only-refresh-secret-DO-NOT-USE-IN-PROD'
+    : null);
 
 /**
- * Generate a signed JWT token for a student.
+ * Build the JWT payload for a student.
  */
-function generateToken(student) {
-  return jwt.sign(
-    {
-      id: student.id,
-      name: student.name,
-      email: student.email,
-      educationLevel: student.educationLevel,
-    },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
-  );
+function buildPayload(student) {
+  return {
+    id: student.id,
+    name: student.name,
+    email: student.email,
+    role: student.role || 'student',
+    educationLevel: student.educationLevel,
+  };
 }
 
 /**
- * Middleware: Require valid authenticated student session.
+ * Generate a short-lived access token (default 15m).
+ */
+function generateAccessToken(student) {
+  return jwt.sign(buildPayload(student), accessSecret, { expiresIn: ACCESS_EXPIRES_IN });
+}
+
+/**
+ * Generate a long-lived refresh token (default 7d).
+ */
+function generateRefreshToken(student) {
+  return jwt.sign({ id: student.id, type: 'refresh' }, refreshSecret, {
+    expiresIn: REFRESH_EXPIRES_IN,
+  });
+}
+
+/**
+ * Backward-compat alias used in authController.
+ */
+function generateToken(student) {
+  return generateAccessToken(student);
+}
+
+/**
+ * Verify an access token. Returns decoded payload or throws.
+ */
+function verifyAccessToken(token) {
+  return jwt.verify(token, accessSecret);
+}
+
+/**
+ * Verify a refresh token. Returns decoded payload or throws.
+ */
+function verifyRefreshToken(token) {
+  return jwt.verify(token, refreshSecret);
+}
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
+
+/**
+ * requireAuth — Validates Bearer access token.
+ * Attaches decoded user to req.user.
  */
 function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -28,16 +87,6 @@ function requireAuth(req, res, next) {
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7).trim();
-  }
-
-  // Support x-student-id for testing/dev environments if no Bearer token provided
-  if (!token && req.headers['x-student-id']) {
-    req.user = {
-      id: req.headers['x-student-id'],
-      name: req.headers['x-student-name'] || 'Authenticated Student',
-      email: req.headers['x-student-email'] || `${req.headers['x-student-id']}@example.com`,
-    };
-    return next();
   }
 
   if (!token) {
@@ -49,48 +98,73 @@ function requireAuth(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyAccessToken(token);
     req.user = decoded;
     next();
   } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        error: 'token_expired',
+        message: 'Your session has expired. Please log in again.',
+      });
+    }
     return res.status(401).json({
       success: false,
       error: 'unauthorized',
-      message: 'Invalid or expired session token. Please log in again.',
+      message: 'Invalid session token. Please log in again.',
     });
   }
 }
 
 /**
- * Middleware: Enforce student data isolation (prevent IDOR).
- * Students can only access their own data (:id === req.user.id or :id === 'me').
+ * requireSelfOrAdmin — Students can only access their own data.
+ * Maps :id === 'me' → req.user.id.
+ * Admins may access any student's data.
  */
 function requireSelfOrAdmin(req, res, next) {
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: 'unauthorized',
-      message: 'Authentication required.',
-    });
+    return res.status(401).json({ success: false, error: 'unauthorized', message: 'Authentication required.' });
   }
 
   const requestedId = req.params.id;
 
-  // Map 'me' keyword to the authenticated user's ID
-  if (requestedId === 'me' || requestedId === req.user.id) {
-    req.params.id = req.user.id;
+  if (requestedId === 'me' || requestedId === req.user.id || req.user.role === 'admin') {
+    req.params.id = requestedId === 'me' ? req.user.id : requestedId;
     return next();
   }
 
   return res.status(403).json({
     success: false,
     error: 'forbidden',
-    message: "Access denied: You can only access your own student profile and career data.",
+    message: 'Access denied: You can only access your own career data.',
   });
+}
+
+/**
+ * requireAdmin — Only users with role === 'admin' may proceed.
+ */
+function requireAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'unauthorized', message: 'Authentication required.' });
+  }
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: 'forbidden',
+      message: 'Admin access required.',
+    });
+  }
+  next();
 }
 
 module.exports = {
   generateToken,
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
   requireAuth,
   requireSelfOrAdmin,
+  requireAdmin,
 };

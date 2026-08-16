@@ -12,14 +12,19 @@ concurrency:
 
 jobs:
   ci:
-    name: Build & Playwright E2E Tests
+    name: Build, Security Audit & Playwright E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     env:
-      COGNODB_URI: ${{ secrets.COGNODB_URI }}
-      COGNODB_USERNAME: ${{ secrets.COGNODB_USERNAME }}
-      COGNODB_PASSWORD: ${{ secrets.COGNODB_PASSWORD }}
+      NEO4J_URI: ${{ secrets.NEO4J_URI || secrets.COGNODB_URI }}
+      NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME || secrets.COGNODB_USERNAME }}
+      NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || secrets.COGNODB_PASSWORD }}
+      COGNODB_URI: ${{ secrets.COGNODB_URI || secrets.NEO4J_URI }}
+      COGNODB_USERNAME: ${{ secrets.COGNODB_USERNAME || secrets.NEO4J_USERNAME }}
+      COGNODB_PASSWORD: ${{ secrets.COGNODB_PASSWORD || secrets.NEO4J_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-jwt-secret-key-64-bytes-long-super-secure-key-12345' }}
+      JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET || 'ci-test-jwt-refresh-secret-key-64-bytes-long-super-secure-key-67890' }}
       PORT: 3001
       NODE_ENV: test
       VITE_API_URL: http://localhost:3001
@@ -53,15 +58,21 @@ jobs:
           cd client
           npm run build
 
-      - name: 7. Install Playwright Chromium with dependencies
+      - name: 7. Run Server API, IDOR & Security Test Suite
+        if: env.COGNODB_URI != ''
+        run: |
+          cd server
+          npm test
+
+      - name: 8. Install Playwright Chromium with dependencies
         run: npx playwright install --with-deps chromium
 
-      - name: 8. Seed CognoDB database
+      - name: 9. Seed CognoDB database
         if: env.COGNODB_URI != ''
         run: |
           node server/scripts/seed.js
 
-      - name: 9. Start SkillOS Backend and Frontend
+      - name: 10. Start SkillOS Backend and Frontend
         run: |
           echo "Starting backend server on port 3001..."
           node server/src/server.js &
@@ -69,7 +80,7 @@ jobs:
           echo "Starting frontend preview on port 5173..."
           cd client && npm run preview -- --port 5173 --host &
 
-      - name: 10. Wait for services to be available
+      - name: 11. Wait for services to be available
         run: |
           echo "Waiting for backend health check..."
           npx wait-on -t 60000 http://localhost:3001/api/health
@@ -77,10 +88,10 @@ jobs:
           npx wait-on -t 60000 http://localhost:5173
           echo "Services are ready!"
 
-      - name: 11. Run Playwright Chromium E2E Suite
+      - name: 12. Run Playwright Chromium & Mobile E2E Suite
         run: npm run test:e2e
 
-      - name: 12. Upload Playwright Test Artifacts
+      - name: 13. Upload Playwright Test Artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:

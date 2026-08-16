@@ -1,3 +1,7 @@
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-skillos-development-key-64-bytes-long-super-secure';
+process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test-jwt-refresh-secret-skillos-development-key-64-bytes-long';
+
 const http = require('http');
 const app = require('../src/app');
 
@@ -60,7 +64,7 @@ async function runTests() {
 
     // 2. Auth Login
     const loginRes = await req(port, 'POST', '/api/auth/login', { studentId: 'student-5' });
-    const token = loginRes.body?.token;
+    const token = loginRes.body?.accessToken || loginRes.body?.token;
     assert('Student Auth Login (/api/auth/login)', loginRes.status === 200 && !!token, `(Token received)`);
 
     const studentId = 'student-5';
@@ -88,7 +92,7 @@ async function runTests() {
     const matchesArray = Array.isArray(matchRes.body.data) ? matchRes.body.data : matchRes.body.data?.matches || [];
     assert('Query B - 2-Hop Career Matching (/api/students/:id/career-match)', matchRes.status === 200 && matchesArray.length > 0, `(Top match: ${matchesArray[0]?.careerRole?.title || matchesArray[0]?.career?.title} ${matchesArray[0]?.matchPercentage}%)`);
 
-    const targetCareerId = matchesArray[0]?.careerRole?.id || matchesArray[0]?.career?.id || 'career-fullstack-dev';
+    const targetCareerId = matchesArray[0]?.careerRole?.id || matchesArray[0]?.career?.id || 'cr-fullstack';
 
     // 7. Query C: Career gap analysis
     const gapRes = await req(port, 'GET', `/api/students/${studentId}/career-match?careerId=${targetCareerId}`, null, token);
@@ -152,7 +156,11 @@ async function runTests() {
     console.error('Fatal test error:', err);
     process.exitCode = 1;
   } finally {
-    server.close();
+    server.close(() => {
+      process.exit(failed > 0 ? 1 : 0);
+    });
+    // Fallback exit if sockets stay open
+    setTimeout(() => process.exit(failed > 0 ? 1 : 0), 500).unref();
   }
 }
 

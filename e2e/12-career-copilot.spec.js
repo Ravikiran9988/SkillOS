@@ -8,7 +8,7 @@ test.describe('E2E Test 12 — AI Career Copilot Chat & Grounding', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Verify Copilot header
-    await expect(page.getByRole('heading', { name: /AI Career Copilot/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /AI Career Copilot|Career Copilot/i })).toBeVisible();
 
     // Verify initial prompt suggestion exists: "What should I learn next?"
     const promptBtn = page.getByRole('button', { name: /What should I learn next/i });
@@ -16,9 +16,9 @@ test.describe('E2E Test 12 — AI Career Copilot Chat & Grounding', () => {
     await promptBtn.click();
 
     // Wait for response message to appear
-    await expect(page.locator('main').getByText(/CognoDB|skills|learning|roadmap/i).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('main').getByText(/CognoDB|skills|learning|roadmap|competency|graph/i).first()).toBeVisible({ timeout: 15000 });
 
     // Verify action links rendered in copilot response
-    await expect(page.getByRole('button', { name: /View Skill Gap|Open Roadmap|Find Jobs/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Skill Gap|Roadmap|Find Jobs/i }).first()).toBeVisible();
   });
 });

@@ -1,286 +1,585 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
-  Home,
-  User,
-  Brain,
-  FolderGit2,
-  Compass,
-  BarChart3,
-  Map,
-  Briefcase,
-  Bot,
-  Network,
-  LogOut,
-  Sparkles,
-  Menu,
-  X,
-  Sun,
-  Moon,
-  Bell,
-  Search,
-  Settings,
+  Home, User, Brain, FolderGit2, Compass, BarChart3, Map, Briefcase,
+  Bot, Network, LogOut, Sparkles, Menu, X, Sun, Moon, Bell, Search,
+  Settings, Bookmark, TrendingUp, ChevronRight, FileText, Swords,
 } from 'lucide-react';
 
-const NAV_ITEMS = [
-  { name: 'Home', path: '/', icon: Home },
-  { name: 'My Profile', path: '/profile', icon: User },
-  { name: 'My Skills', path: '/skills', icon: Brain },
-  { name: 'My Projects', path: '/projects', icon: FolderGit2 },
-  { name: 'Career Explorer', path: '/careers', icon: Compass },
-  { name: 'Skill Gap', path: '/skill-gap', icon: BarChart3 },
-  { name: 'Learning Roadmap', path: '/roadmap', icon: Map },
-  { name: 'Job Matches', path: '/jobs', icon: Briefcase },
-  { name: 'AI Career Copilot', path: '/copilot', icon: Bot, badge: 'AI' },
-  { name: 'My Career Graph', path: '/graph', icon: Network },
-  { name: 'Settings', path: '/settings', icon: Settings },
+const NAV_GROUPS = [
+  {
+    label: 'Career Intelligence',
+    items: [
+      { name: 'Home',             path: '/',          icon: Home },
+      { name: 'My Profile',       path: '/profile',   icon: User },
+      { name: 'My Skills',        path: '/skills',    icon: Brain },
+      { name: 'My Projects',      path: '/projects',  icon: FolderGit2 },
+    ],
+  },
+  {
+    label: 'Explore & Plan',
+    items: [
+      { name: 'Career Explorer',  path: '/careers',   icon: Compass },
+      { name: 'Skill Gap',        path: '/skill-gap', icon: BarChart3 },
+      { name: 'Roadmap',          path: '/roadmap',   icon: Map },
+      { name: 'Job Matches',      path: '/jobs',      icon: Briefcase },
+    ],
+  },
+  {
+    label: 'AI & Insights',
+    items: [
+      { name: 'AI Copilot',       path: '/copilot',   icon: Bot,     badge: 'AI' },
+      { name: 'Career Graph',     path: '/graph',     icon: Network },
+      { name: 'Progress',         path: '/progress',  icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { name: 'Resume Builder',   path: '/resume',    icon: FileText },
+      { name: 'Interview Prep',   path: '/interview', icon: Swords },
+      { name: 'Saved',            path: '/saved',     icon: Bookmark },
+    ],
+  },
 ];
 
-const MOBILE_PRIMARY_NAV = [
-  { name: 'Home', path: '/', icon: Home },
-  { name: 'Skills', path: '/skills', icon: Brain },
+const MOBILE_NAV = [
+  { name: 'Home',    path: '/',        icon: Home },
+  { name: 'Skills',  path: '/skills',  icon: Brain },
   { name: 'Roadmap', path: '/roadmap', icon: Map },
-  { name: 'Jobs', path: '/jobs', icon: Briefcase },
+  { name: 'Jobs',    path: '/jobs',    icon: Briefcase },
   { name: 'Copilot', path: '/copilot', icon: Bot },
 ];
 
+function isPathActive(path, currentPath) {
+  return path === '/'
+    ? currentPath === '/' || currentPath === '/dashboard'
+    : currentPath.startsWith(path);
+}
+
+// ─── Notification Bell ────────────────────────────────────────────────────────
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  // Sample notifications (real impl in NotificationBell component)
+  const notifications = [
+    { id: 1, title: 'New job match: AI Engineer at Infosys', read: false, time: '2h ago' },
+    { id: 2, title: 'Your roadmap has 3 new items', read: false, time: '1d ago' },
+    { id: 3, title: 'Weekly career digest is ready', read: true, time: '3d ago' },
+  ];
+  const unread = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative p-2 rounded-xl transition-all duration-150"
+        style={{ color: 'var(--text-muted)' }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+        aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ''}`}
+      >
+        <Bell className="w-5 h-5" />
+        {unread > 0 && (
+          <span className="absolute top-1 right-1 w-2 h-2 rounded-full animate-pulse-soft"
+            style={{ background: 'var(--accent)' }} />
+        )}
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-12 w-80 rounded-2xl shadow-lg z-50 overflow-hidden animate-scale-in"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}
+        >
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Notifications</h3>
+            {unread > 0 && (
+              <span className="text-xs font-medium badge-blue badge">{unread} new</span>
+            )}
+          </div>
+          <div className="divide-y" style={{ '--tw-divide-opacity': 1 }}>
+            {notifications.map((n) => (
+              <div key={n.id} className="px-4 py-3 flex items-start gap-3 transition-colors cursor-pointer"
+                style={{ background: n.read ? 'transparent' : 'var(--accent-subtle)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = n.read ? 'transparent' : 'var(--accent-subtle)'; }}
+              >
+                {!n.read && <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: 'var(--accent)' }} />}
+                {n.read && <div className="w-2 h-2 mt-1.5 shrink-0" />}
+                <div>
+                  <p className="text-sm font-medium leading-snug" style={{ color: 'var(--text-primary)' }}>{n.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{n.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2.5 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+            <button className="text-xs font-medium hover:underline" style={{ color: 'var(--accent)' }}>
+              View all notifications
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Global Search ─────────────────────────────────────────────────────────────
+function GlobalSearchBar() {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setOpen((o) => !o);
+      }
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [open]);
+
+  return (
+    <>
+      {/* Search trigger button */}
+      <button
+        onClick={() => setOpen(true)}
+        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm transition-all duration-150"
+        style={{
+          background: 'var(--surface-hover)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-muted)',
+          minWidth: '220px',
+        }}
+        aria-label="Search (Ctrl+K)"
+      >
+        <Search className="w-4 h-4 shrink-0" />
+        <span className="flex-1 text-left">Search careers, skills, jobs…</span>
+        <span className="text-xs font-mono rounded px-1 py-0.5" style={{ background: 'var(--surface-active)', color: 'var(--text-disabled)' }}>⌘K</span>
+      </button>
+
+      {/* Command palette modal */}
+      {open && (
+        <div
+          className="fixed inset-0 z-[100] flex items-start justify-center pt-20 px-4"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl overflow-hidden animate-scale-in"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}
+          >
+            <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+              <Search className="w-5 h-5 shrink-0" style={{ color: 'var(--text-muted)' }} />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search careers, skills, jobs, projects…"
+                className="flex-1 bg-transparent text-sm focus:outline-none"
+                style={{ color: 'var(--text-primary)' }}
+              />
+              <button onClick={() => setOpen(false)} className="text-xs font-medium rounded px-1.5 py-0.5"
+                style={{ background: 'var(--surface-hover)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                ESC
+              </button>
+            </div>
+
+            {!query && (
+              <div className="p-4">
+                <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Quick access</p>
+                <div className="space-y-1">
+                  {[
+                    { label: 'Career Explorer', path: '/careers', icon: Compass },
+                    { label: 'Skill Gap Analysis', path: '/skill-gap', icon: BarChart3 },
+                    { label: 'AI Career Copilot', path: '/copilot', icon: Bot },
+                    { label: 'Job Matches', path: '/jobs', icon: Briefcase },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <a key={item.path} href={item.path}
+                        onClick={() => setOpen(false)}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all"
+                        style={{ color: 'var(--text-secondary)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                      >
+                        <Icon className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                        {item.label}
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {query && (
+              <div className="p-4">
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  Search functionality coming soon — results for "{query}"
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Main Layout ──────────────────────────────────────────────────────────────
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const handleLogout = () => { logout(); navigate('/login'); };
 
+  const firstName = user?.name?.split(' ')[0] || 'Student';
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'S';
-  const targetCareerTitle = user?.targetCareer?.title || user?.targetCareer || 'Career Explorer';
+  const targetCareerTitle = user?.targetCareer?.title || user?.targetCareer || null;
+
+  // Close mobile menu on route change
+  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased selection:bg-indigo-500 selection:text-white">
-      {/* ─── Mobile Top Header ─────────────────────────────────────────────── */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+    <div
+      className="min-h-screen flex flex-col md:flex-row antialiased"
+      style={{ backgroundColor: 'var(--bg)', color: 'var(--text-secondary)' }}
+    >
+      {/* ─── Skip to content (accessibility) ─────────────────────────────── */}
+      <a href="#main-content" className="skip-link">Skip to content</a>
+
+      {/* ─── Mobile Top Header ──────────────────────────────────────────────── */}
+      <header
+        className="md:hidden flex items-center justify-between px-4 py-3 sticky top-0 z-40 backdrop-blur-xl"
+        style={{ background: 'var(--header-bg)', borderBottom: '1px solid var(--header-border)' }}
+      >
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
             <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <div className="font-bold text-sm text-white leading-tight">SkillOS</div>
-            <div className="text-[10px] text-indigo-400 font-medium">AI Career Copilot</div>
-          </div>
+          <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>SkillOS</span>
         </div>
-
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <NotificationBell />
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white"
-            title="Toggle theme"
+            className="p-2 rounded-xl transition-colors"
+            style={{ color: 'var(--text-muted)' }}
+            aria-label="Toggle theme"
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white focus:outline-none"
+            className="p-2 rounded-xl transition-colors"
+            style={{ color: 'var(--text-muted)' }}
             aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </header>
 
-      {/* ─── Desktop Left Sidebar ─────────────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-slate-900/80 backdrop-blur-xl border-r border-slate-800/80 p-5 shrink-0 sticky top-0 h-screen overflow-y-auto justify-between">
-        <div className="space-y-6">
-          {/* Brand Header */}
-          <div className="flex items-center gap-3 px-2 py-1">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="font-extrabold text-base tracking-tight text-white">SkillOS</div>
-              <div className="text-xs text-indigo-400 font-medium">AI Career Copilot</div>
-            </div>
+      {/* ─── Desktop Sidebar ──────────────────────────────────────────────────── */}
+      <aside
+        className="hidden md:flex flex-col sticky top-0 h-screen overflow-y-auto shrink-0 transition-all duration-200"
+        style={{
+          width: sidebarCollapsed ? '64px' : '240px',
+          background: 'var(--sidebar-bg)',
+          borderRight: '1px solid var(--sidebar-border)',
+        }}
+      >
+        {/* Brand */}
+        <div className="flex items-center gap-3 px-4 py-5 shrink-0" style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: 'var(--shadow-accent)' }}>
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                item.path === '/'
-                  ? location.pathname === '/' || location.pathname === '/dashboard'
-                  : location.pathname.startsWith(item.path);
-
-              return (
-                <NavLink
-                  key={item.name}
-                  to={item.path}
-                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 group ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon
-                      className={`w-4 h-4 transition-transform group-hover:scale-110 ${
-                        isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-400'
-                      }`}
-                    />
-                    <span>{item.name}</span>
-                  </div>
-                  {item.badge && (
-                    <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded-md font-extrabold uppercase tracking-wide ${
-                        isActive
-                          ? 'bg-white/20 text-white'
-                          : 'bg-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white'
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
-          </nav>
+          {!sidebarCollapsed && (
+            <div className="min-w-0">
+              <div className="font-extrabold text-sm tracking-tight" style={{ color: 'var(--text-primary)' }}>SkillOS</div>
+              <div className="text-xs font-medium" style={{ color: 'var(--accent)' }}>AI Career Copilot</div>
+            </div>
+          )}
         </div>
 
-        {/* User Profile & Footer Controls */}
-        <div className="pt-4 border-t border-slate-800/80 space-y-3">
-          {/* Authenticated Student Identity Card */}
-          <div
+        {/* Nav groups */}
+        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto" aria-label="Main navigation">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              {!sidebarCollapsed && (
+                <p className="text-[10px] font-bold uppercase tracking-widest px-2 mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                  {group.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = isPathActive(item.path, location.pathname);
+                  return (
+                    <NavLink
+                      key={item.name}
+                      to={item.path}
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-150 group"
+                      style={{
+                        background: active ? 'var(--sidebar-active-bg)' : 'transparent',
+                        color: active ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
+                        border: active ? '1px solid var(--sidebar-active-border)' : '1px solid transparent',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.background = 'var(--sidebar-hover-bg)';
+                          e.currentTarget.style.color = 'var(--sidebar-text-hover)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = 'var(--sidebar-text)';
+                        }
+                      }}
+                      title={sidebarCollapsed ? item.name : undefined}
+                      aria-current={active ? 'page' : undefined}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {!sidebarCollapsed && (
+                        <span className="flex-1 truncate">{item.name}</span>
+                      )}
+                      {!sidebarCollapsed && item.badge && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wide badge-blue badge">
+                          {item.badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer: User identity + controls */}
+        <div className="px-3 py-4 shrink-0" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
+          {/* User card */}
+          <button
             onClick={() => navigate('/profile')}
-            className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-indigo-500/40 cursor-pointer transition group"
+            className="w-full flex items-center gap-2.5 p-2.5 rounded-xl mb-3 transition-all duration-150 text-left"
+            style={{ border: '1px solid var(--border)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.borderColor = 'var(--accent)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border)'; }}
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-extrabold text-sm text-white shrink-0 shadow-md shadow-indigo-500/20">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-white shrink-0"
+              style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
+            >
               {userInitial}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold text-white truncate group-hover:text-indigo-300 transition">
-                {user?.name || 'Student'}
+            {!sidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                  {user?.name || 'Student'}
+                </div>
+                {targetCareerTitle && (
+                  <div className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                    {targetCareerTitle}
+                  </div>
+                )}
               </div>
-              <div className="text-[10px] text-slate-400 truncate flex items-center gap-1">
-                <span className="truncate">{targetCareerTitle}</span>
-              </div>
-            </div>
-          </div>
+            )}
+          </button>
 
-          {/* Theme Toggle & Sign Out */}
-          <div className="flex items-center gap-2">
+          {/* Controls */}
+          <div className="flex gap-2">
             <button
               onClick={toggleTheme}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-950/40 hover:bg-slate-800/60 border border-slate-800/80 transition"
-              title="Toggle theme"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
+              style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              aria-label="Toggle theme"
             >
-              {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-400" />}
-              <span>{isDark ? 'Light' : 'Dark'}</span>
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              {!sidebarCollapsed && (isDark ? 'Light' : 'Dark')}
             </button>
 
             <button
               onClick={handleLogout}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 transition"
-              title="Sign Out"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
+              style={{ border: '1px solid var(--danger-border)', color: 'var(--danger)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--danger-bg)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              aria-label="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
+              {!sidebarCollapsed && 'Sign out'}
             </button>
           </div>
         </div>
       </aside>
 
-      {/* ─── Mobile Slide-out Drawer Menu ──────────────────────────────────── */}
+      {/* ─── Mobile Slide-out Menu ────────────────────────────────────────────── */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col p-6 md:hidden overflow-y-auto">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div
+          className="fixed inset-0 z-50 md:hidden flex flex-col overflow-y-auto"
+          style={{ background: 'var(--sidebar-bg)' }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-sm"
+                style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
                 {userInitial}
               </div>
               <div>
-                <div className="text-sm font-bold text-white">{user?.name}</div>
-                <div className="text-xs text-indigo-400">{targetCareerTitle}</div>
+                <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{user?.name}</div>
+                {targetCareerTitle && (
+                  <div className="text-xs" style={{ color: 'var(--accent)' }}>{targetCareerTitle}</div>
+                )}
               </div>
             </div>
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
-            >
+            <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-xl"
+              style={{ color: 'var(--text-muted)', background: 'var(--surface-hover)' }}>
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <nav className="space-y-1.5 my-6 flex-1">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                item.path === '/'
-                  ? location.pathname === '/' || location.pathname === '/dashboard'
-                  : location.pathname.startsWith(item.path);
-
-              return (
-                <NavLink
-                  key={item.name}
-                  to={item.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                    isActive ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5" />
-                    <span>{item.name}</span>
-                  </div>
-                  {item.badge && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold">
-                      {item.badge}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
+          {/* Nav items */}
+          <nav className="flex-1 px-4 py-4 space-y-4" aria-label="Mobile navigation">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.label}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isPathActive(item.path, location.pathname);
+                    return (
+                      <NavLink
+                        key={item.name}
+                        to={item.path}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                        style={{
+                          background: active ? 'var(--sidebar-active-bg)' : 'transparent',
+                          color: active ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
+                          border: active ? '1px solid var(--sidebar-active-border)' : '1px solid transparent',
+                        }}
+                      >
+                        <Icon className="w-5 h-5" />
+                        <span className="flex-1">{item.name}</span>
+                        {item.badge && <span className="badge badge-blue text-[9px]">{item.badge}</span>}
+                        {active && <ChevronRight className="w-4 h-4" />}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
 
-          <button
-            onClick={handleLogout}
-            className="w-full py-3 rounded-xl bg-rose-500/10 text-rose-400 font-semibold text-sm flex items-center justify-center gap-2 border border-rose-500/20"
-          >
-            <LogOut className="w-4 h-4" /> Sign Out
-          </button>
+          {/* Footer */}
+          <div className="px-4 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="flex gap-2 mb-3">
+              <button onClick={toggleTheme} className="flex-1 btn-secondary py-2 text-xs">
+                {isDark ? <><Sun className="w-4 h-4" /> Light mode</> : <><Moon className="w-4 h-4" /> Dark mode</>}
+              </button>
+              <NavLink to="/settings" className="flex-1 btn-secondary py-2 text-xs flex items-center justify-center gap-1.5">
+                <Settings className="w-4 h-4" /> Settings
+              </NavLink>
+            </div>
+            <button onClick={handleLogout} className="btn-danger w-full text-sm">
+              <LogOut className="w-4 h-4" /> Sign out
+            </button>
+          </div>
         </div>
       )}
 
-      {/* ─── Main Content Container ────────────────────────────────────────── */}
-      <main className="flex-1 min-w-0 flex flex-col min-h-screen pb-16 md:pb-0 overflow-x-hidden">
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+      {/* ─── Main Content Area ────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen">
+        {/* Desktop top header bar */}
+        <header
+          className="hidden md:flex items-center justify-between px-6 py-3 sticky top-0 z-30 backdrop-blur-xl"
+          style={{ background: 'var(--header-bg)', borderBottom: '1px solid var(--header-border)' }}
+        >
+          <GlobalSearchBar />
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl transition-all"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              aria-label="Toggle theme"
+            >
+              {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+            </button>
+            <NavLink to="/settings"
+              className="p-2 rounded-xl transition-all"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              <Settings className="w-4 h-4" />
+            </NavLink>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main
+          id="main-content"
+          className="flex-1 p-4 sm:p-6 lg:p-8 pb-20 md:pb-8 max-w-7xl w-full mx-auto space-y-6 animate-fade-in"
+        >
           <Outlet />
-        </div>
-      </main>
+        </main>
+      </div>
 
-      {/* ─── Mobile Bottom Navigation Bar (Primary Destinations) ─────────── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 flex items-center justify-around py-2 px-1">
-        {MOBILE_PRIMARY_NAV.map((item) => {
+      {/* ─── Mobile Bottom Tab Bar ────────────────────────────────────────────── */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around py-2 px-1 safe-area-pb"
+        style={{ background: 'var(--header-bg)', borderTop: '1px solid var(--header-border)', backdropFilter: 'blur(12px)' }}
+        aria-label="Primary navigation"
+      >
+        {MOBILE_NAV.map((item) => {
           const Icon = item.icon;
-          const isActive =
-            item.path === '/'
-              ? location.pathname === '/' || location.pathname === '/dashboard'
-              : location.pathname.startsWith(item.path);
-
+          const active = isPathActive(item.path, location.pathname);
           return (
             <NavLink
               key={item.name}
               to={item.path}
-              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition ${
-                isActive ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className="flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all gap-0.5"
+              style={{ color: active ? 'var(--accent)' : 'var(--text-muted)' }}
+              aria-current={active ? 'page' : undefined}
             >
-              <Icon className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">{item.name}</span>
+              <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110' : ''}`} />
+              <span className="text-xs font-medium">{item.name}</span>
             </NavLink>
           );
         })}

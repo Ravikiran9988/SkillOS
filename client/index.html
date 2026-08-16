@@ -2,15 +2,48 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="SkillOS — Student Skill & Career Intelligence Graph. Discover your skill gaps, visualize your career path, and find relevant jobs powered by a graph database." />
-    <title>SkillOS — Career Intelligence Graph</title>
+
+    <!-- Primary Meta -->
+    <title>SkillOS — Your Personal AI Career Copilot</title>
+    <meta name="description" content="SkillOS is your personal AI career operating system. Discover skill gaps, get a dynamic learning roadmap, and match with jobs powered by your career intelligence graph." />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="SkillOS — AI Career Copilot" />
+    <meta property="og:description" content="Your personal AI career operating system. Discover skill gaps, roadmap, and job matches." />
+    <meta property="og:type" content="website" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SkillOS" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='.85em' font-size='65' x='17'>⚡</text></svg>" />
+
+    <!-- Google Fonts — Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('Service Worker registration failed:', err);
+          });
+        });
+      }
+    </script>
   </head>
   <body>
+    <!-- Skip to main content for keyboard/screen reader users -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

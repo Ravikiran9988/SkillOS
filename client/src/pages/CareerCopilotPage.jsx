@@ -3,87 +3,138 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import * as api from '../services/api';
 import {
-  Bot,
-  Send,
-  Sparkles,
-  User,
-  Brain,
-  Target,
-  Map,
-  Briefcase,
-  Layers,
-  ArrowRight,
-  Shield,
+  Bot, Send, Sparkles, ArrowRight, RefreshCw, Trash2,
+  Copy, Check, RotateCcw, AlertTriangle, ShieldCheck,
 } from 'lucide-react';
-import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 
 const SUGGESTED_PROMPTS = [
   'What should I learn next?',
-  'Am I ready for an AI Engineer job?',
-  'Why is my career match only 57%?',
-  'Review my skills and top gaps',
-  'What project should I build next?',
+  'Am I ready for an AI Engineer role?',
+  'Analyze my top 3 skill gaps',
   'Create a 30-day learning plan',
+  'What project should I build next?',
+  'How do I improve my career match score?',
 ];
+
+const STORAGE_KEY = 'skillos_copilot_history';
 
 export default function CareerCopilotPage() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+  const [aiStatus, setAiStatus] = useState(null);
+
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+  useEffect(() => {
+    api.getAiStatus().then(setAiStatus).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (location.state?.initialPrompt) {
       sendMessage(location.state.initialPrompt);
+      window.history.replaceState({}, '');
     }
-  }, [location.state]);
+  }, []);
 
+  useEffect(() => { scrollToBottom(); }, [messages, loading]);
+
+  // Persist conversation in session storage
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-50))); } catch {}
+  }, [messages]);
 
   const sendMessage = async (textToSend) => {
     const text = (textToSend || input).trim();
-    if (!text || loading || !user?.id) return;
+    if (!text || loading) return;
 
     const userMessage = {
-      id: Date.now().toString(),
+      id: `u_${Date.now()}`,
       role: 'user',
       content: text,
       timestamp: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput('');
     setLoading(true);
 
     try {
-      const response = await api.askCareerCopilot(user.id, text);
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.reply || response.answer || response.content || 'I have analyzed your graph.',
-        context: response.context,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      // Pass recent history window for conversational memory
+      const historyPayload = updatedMessages
+        .slice(-8)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const response = await api.careerChat(text, historyPayload);
+      const content =
+        typeof response === 'string'
+          ? response
+          : response?.answer || response?.reply || response?.message || response?.content || 'I have analyzed your career graph.';
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a_${Date.now()}`,
+          role: 'assistant',
+          content,
+          facts: response?.facts || [],
+          recommendations: response?.recommendations || [],
+          actions: response?.actions || response?.actionLinks || [],
+          model: response?.model,
+          provider: response?.provider,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     } catch (err) {
-      const errorMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'I encountered an issue connecting to the CognoDB intelligence engine. Please try again.',
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      const isRateLimit = err.message?.includes('rate_limited') || err.response?.status === 429;
+      const isTimeout = err.response?.status === 504;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `e_${Date.now()}`,
+          role: 'assistant',
+          content: isRateLimit
+            ? 'You have reached the AI request limit. Please wait a moment before asking again.'
+            : isTimeout
+            ? 'The AI copilot timed out while reasoning. Please retry your question.'
+            : 'SkillOS is currently having trouble connecting to the AI reasoning layer. Your graph data is safe — click Retry below.',
+          isError: true,
+          failedPrompt: text,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     } finally {
       setLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
+  };
+
+  const handleCopy = (id, text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const clearHistory = () => {
+    setMessages([]);
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   };
 
   const handleKeyDown = (e) => {
@@ -93,109 +144,189 @@ export default function CareerCopilotPage() {
     }
   };
 
+  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
+
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] max-w-5xl mx-auto animate-fade-in space-y-4">
-      {/* ─── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-800 shrink-0">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2.5">
-            <Bot className="w-6 h-6 text-indigo-400" /> Your AI Career Copilot
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Real-time career advisory grounded in your live CognoDB student graph.
-          </p>
+    <div className="flex flex-col h-[calc(100vh-7rem)] max-w-4xl mx-auto animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-4 mb-4 shrink-0"
+        style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+            style={{ background: 'var(--accent)', boxShadow: 'var(--shadow-accent)' }}>
+            <Bot className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-extrabold" style={{ color: 'var(--text-primary)' }}>AI Career Copilot</h1>
+              <Badge variant="blue" icon={Sparkles}>
+                {aiStatus?.provider === 'groq' ? 'Groq AI Active' : 'AI Active'}
+              </Badge>
+            </div>
+            <p className="text-xs flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+              Grounded in CognoDB career graph for {user?.name?.split(' ')[0] || 'you'}
+            </p>
+          </div>
         </div>
 
-        <Badge variant="ai" icon={Sparkles}>
-          Graph-Grounded
-        </Badge>
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              onClick={clearHistory}
+              className="p-2 rounded-xl transition-all flex items-center gap-1.5 text-xs font-medium"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              title="Clear conversation"
+              aria-label="Clear conversation history"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Clear</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* ─── Messages Container ──────────────────────────────────────────── */}
-      <Card className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-slate-900/90 border-slate-800">
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto space-y-4 pr-1 mb-4">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col justify-center items-center text-center max-w-lg mx-auto space-y-5 py-8">
-            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/25">
+          /* Empty state with suggestions */
+          <div className="h-full flex flex-col justify-center items-center text-center max-w-lg mx-auto px-4 py-8 space-y-6">
+            <div className="w-16 h-16 rounded-3xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, var(--accent), #1d4ed8)', boxShadow: 'var(--shadow-accent)' }}>
               <Bot className="w-8 h-8 text-white" />
             </div>
-
-            <div className="space-y-1.5">
-              <h2 className="text-xl font-bold text-white">Hi {user?.name || 'there'} 👋</h2>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                I'm your SkillOS Career Copilot. I have full live context on your verified skills, projects, target career, skill gaps, roadmap, and matched jobs.
+            <div>
+              <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+                Hi {user?.name?.split(' ')[0] || 'there'} 👋
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                I'm your SkillOS Career Copilot. Powered by Groq and strictly grounded in your verified CognoDB graph, I provide strategic advice tailored to your exact skills and goals.
               </p>
             </div>
 
-            <div className="w-full pt-2">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2.5 text-left">
-                Suggested questions:
-              </div>
+            <div className="w-full">
+              <p className="text-xs font-bold uppercase tracking-wider mb-3 text-left" style={{ color: 'var(--text-muted)' }}>
+                Suggested questions
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {SUGGESTED_PROMPTS.map((prompt) => (
                   <button
                     key={prompt}
                     onClick={() => sendMessage(prompt)}
-                    className="p-3 rounded-xl bg-slate-950/80 hover:bg-indigo-900/40 border border-slate-800 hover:border-indigo-500/40 text-xs text-left text-slate-200 hover:text-white transition flex items-center justify-between group"
+                    className="p-3 rounded-xl text-left text-xs font-medium transition-all flex items-center justify-between group"
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
                   >
-                    <span className="truncate">"{prompt}"</span>
-                    <ArrowRight className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
+                    <span className="truncate flex-1">"{prompt}"</span>
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--accent)' }} />
                   </button>
                 ))}
               </div>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <>
             {messages.map((msg) => {
               const isUser = msg.role === 'user';
+              const actions = msg.actions || [];
 
               return (
-                <div
-                  key={msg.id}
-                  className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
-                >
+                <div key={msg.id} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'} group`}>
                   {!isUser && (
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-indigo-500/20">
-                      <Bot className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 mt-0.5"
+                      style={{ background: msg.isError ? 'var(--danger)' : 'var(--accent)', boxShadow: 'var(--shadow-accent)' }}>
+                      {msg.isError ? <AlertTriangle className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                     </div>
                   )}
 
                   <div
-                    className={`max-w-2xl rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
-                      isUser
-                        ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md shadow-indigo-600/20'
-                        : 'bg-slate-950/90 border border-slate-800 text-slate-100 rounded-tl-sm shadow-sm'
-                    }`}
+                    className="max-w-2xl rounded-2xl p-4 text-sm leading-relaxed relative"
+                    style={isUser ? {
+                      background: 'var(--accent)',
+                      color: 'white',
+                      borderRadius: '1rem 1rem 0.25rem 1rem',
+                      boxShadow: 'var(--shadow-accent)',
+                    } : {
+                      background: msg.isError ? 'var(--danger-bg)' : 'var(--surface)',
+                      border: `1px solid ${msg.isError ? 'var(--danger-border)' : 'var(--border)'}`,
+                      color: msg.isError ? 'var(--danger)' : 'var(--text-secondary)',
+                      borderRadius: '0.25rem 1rem 1rem 1rem',
+                    }}
                   >
+                    {/* Copy button on assistant bubbles */}
+                    {!isUser && !msg.isError && (
+                      <button
+                        onClick={() => handleCopy(msg.id, msg.content)}
+                        className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ background: 'var(--surface-hover)', color: 'var(--text-muted)' }}
+                        title="Copy response"
+                        aria-label="Copy response text"
+                      >
+                        {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
+
                     <div className="whitespace-pre-wrap">{msg.content}</div>
 
-                    {!isUser && (
-                      <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center gap-2 flex-wrap text-[11px]">
+                    {/* Action buttons */}
+                    {!isUser && !msg.isError && (
+                      <div className="mt-3 pt-3 flex items-center gap-2 flex-wrap text-xs" style={{ borderTop: '1px solid var(--border)' }}>
+                        {actions.length > 0 ? (
+                          actions.map((act) => {
+                            const target = act.route || act.path || '/roadmap';
+                            return (
+                              <button
+                                key={act.label}
+                                onClick={() => navigate(target)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1"
+                                style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = 'white'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent-subtle)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                              >
+                                {act.label} <ArrowRight className="w-3 h-3" />
+                              </button>
+                            );
+                          })
+                        ) : (
+                          [
+                            { label: 'View Skill Gap', path: '/skill-gap' },
+                            { label: 'Open Roadmap', path: '/roadmap' },
+                            { label: 'Find Jobs', path: '/jobs' },
+                          ].map(({ label, path }) => (
+                            <button key={path} onClick={() => navigate(path)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                              style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = 'white'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent-subtle)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                            >
+                              {label}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {/* Retry button on error */}
+                    {msg.isError && msg.failedPrompt && (
+                      <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: '1px solid var(--danger-border)' }}>
                         <button
-                          onClick={() => navigate('/skill-gap')}
-                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-indigo-400 font-semibold transition"
+                          onClick={() => sendMessage(msg.failedPrompt)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
+                          style={{ background: 'var(--danger)', color: 'white' }}
                         >
-                          View Skill Gap
-                        </button>
-                        <button
-                          onClick={() => navigate('/roadmap')}
-                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-indigo-400 font-semibold transition"
-                        >
-                          Open Roadmap
-                        </button>
-                        <button
-                          onClick={() => navigate('/jobs')}
-                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-indigo-400 font-semibold transition"
-                        >
-                          Find Jobs
+                          <RotateCcw className="w-3.5 h-3.5" /> Retry Request
                         </button>
                       </div>
                     )}
                   </div>
 
                   {isUser && (
-                    <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                      {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 mt-0.5"
+                      style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' }}>
+                      {userInitial}
                     </div>
                   )}
                 </div>
@@ -204,50 +335,55 @@ export default function CareerCopilotPage() {
 
             {loading && (
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0">
-                  <Bot className="w-4 h-4 animate-pulse" />
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--accent)' }}>
+                  <Bot className="w-4 h-4 text-white animate-pulse" />
                 </div>
-                <div className="p-4 rounded-2xl rounded-tl-sm bg-slate-950/90 border border-slate-800 text-slate-400 text-xs flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-400 animate-spin" />
-                  <span>Synthesizing response from CognoDB knowledge graph...</span>
+                <div className="p-3.5 rounded-2xl text-sm flex items-center gap-2"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem 1rem 1rem 1rem' }}>
+                  <Sparkles className="w-4 h-4 animate-spin" style={{ color: 'var(--accent)' }} />
+                  <span>Synthesizing response from CognoDB knowledge graph via Groq…</span>
                 </div>
               </div>
             )}
 
             <div ref={messagesEndRef} />
-          </div>
+          </>
         )}
-      </Card>
+      </div>
 
-      {/* ─── Input Bar ───────────────────────────────────────────────────── */}
+      {/* Input area */}
       <div className="shrink-0">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessage();
-          }}
-          className="relative flex items-center gap-2"
-        >
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex items-center gap-2">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything about your skills, roadmap, career path..."
+            placeholder="Ask anything about your skills, roadmap, career path, or interview readiness…"
             disabled={loading}
-            className="flex-1 px-4 py-3 rounded-2xl bg-slate-900 border border-slate-800 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 shadow-lg transition"
+            maxLength={2000}
+            className="flex-1 input rounded-2xl py-3"
+            aria-label="Message to AI Career Copilot"
           />
-
-          <Button
+          <button
             type="submit"
             disabled={!input.trim() || loading}
-            loading={loading}
-            icon={Send}
-            className="rounded-2xl px-5 py-3"
+            className="p-3 rounded-2xl transition-all shrink-0 flex items-center justify-center"
+            style={{
+              background: !input.trim() || loading ? 'var(--surface-hover)' : 'var(--accent)',
+              color: !input.trim() || loading ? 'var(--text-muted)' : 'white',
+              boxShadow: !input.trim() || loading ? 'none' : 'var(--shadow-accent)',
+            }}
+            aria-label="Send message"
           >
-            Send
-          </Button>
+            {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+          </button>
         </form>
+        <p className="text-xs text-center mt-2" style={{ color: 'var(--text-muted)' }}>
+          Responses are strictly grounded in your CognoDB career graph. Press Enter to send.
+        </p>
       </div>
     </div>
   );

@@ -16,48 +16,51 @@ export default class ErrorBoundary extends React.Component {
     this.setState({ errorInfo });
   }
 
-  handleReload = () => {
-    window.location.reload();
-  };
-
-  handleGoHome = () => {
-    window.location.href = '/';
-  };
+  handleReload = () => { window.location.reload(); };
+  handleGoHome = () => { window.location.href = '/'; };
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
-          <div className="max-w-md w-full p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
-            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/10">
-              <AlertTriangle className="w-7 h-7" />
+        <div
+          className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
+          style={{ backgroundColor: 'var(--bg)', color: 'var(--text-secondary)' }}
+        >
+          <div
+            className="max-w-md w-full p-8 rounded-3xl space-y-6"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}
+          >
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
+              style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}
+            >
+              <AlertTriangle className="w-7 h-7" style={{ color: 'var(--danger)' }} />
             </div>
 
-            <div className="space-y-2">
-              <h2 className="text-xl font-extrabold text-white">Something Went Wrong</h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                An unexpected application error occurred while rendering the page.
+            <div>
+              <h2 className="text-xl font-extrabold mb-2" style={{ color: 'var(--text-primary)' }}>
+                Something Went Wrong
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                An unexpected error occurred. Your career data is safe — please reload the page.
               </p>
             </div>
 
             {this.state.error && (
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-rose-300 text-left overflow-x-auto max-h-36">
+              <div
+                className="p-3.5 rounded-xl text-xs font-mono text-left overflow-x-auto max-h-36"
+                style={{ background: 'var(--surface-elevated)', border: '1px solid var(--danger-border)', color: 'var(--danger)' }}
+              >
                 {this.state.error.toString()}
               </div>
             )}
 
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <button
-                onClick={this.handleReload}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center gap-2"
-              >
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={this.handleReload} className="btn-primary flex items-center gap-2">
                 <RefreshCw className="w-4 h-4" /> Reload Page
               </button>
-              <button
-                onClick={this.handleGoHome}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition border border-slate-700 flex items-center gap-2"
-              >
-                <Home className="w-4 h-4" /> Go to Dashboard
+              <button onClick={this.handleGoHome} className="btn-secondary flex items-center gap-2">
+                <Home className="w-4 h-4" /> Dashboard
               </button>
             </div>
           </div>

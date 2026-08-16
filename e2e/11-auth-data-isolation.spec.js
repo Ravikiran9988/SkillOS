@@ -1,20 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { loginAs } from './auth.helper.js';
 
 test.describe('E2E Test 11 — Auth & Student Data Isolation (Security & IDOR Protection)', () => {
   test('should enforce student authentication, prevent IDOR, and isolate student sessions', async ({ page, request }) => {
-    // 1. Clear session and navigate to login
+    // 1. Clear session and login as Student A (Aditya Singh)
     await page.goto('/login');
     await page.evaluate(() => {
       localStorage.clear();
     });
-    await page.goto('/login');
-    await page.waitForLoadState('domcontentloaded');
-
-    const btn = page.getByRole('button', { name: /Aditya Singh/i });
-    await expect(btn).toBeVisible({ timeout: 10000 });
-    await btn.click();
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
-    await page.waitForLoadState('domcontentloaded');
+    await loginAs(page, 'Aditya Singh');
 
     // Verify student name rendered on page
     await expect(page.locator('body').getByText(/Aditya Singh/i).first()).toBeVisible();

@@ -139,6 +139,60 @@ async function getStudentGraph(req, res, next) {
   }
 }
 
+async function getSavedItems(req, res, next) {
+  try {
+    const studentRepo = require('../repositories/studentRepository');
+    const items = await studentRepo.getSavedItems(req.params.id);
+    res.json({ success: true, data: items });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function saveItem(req, res, next) {
+  try {
+    const { type, itemId } = req.body;
+    if (!itemId) {
+      return res.status(400).json({ success: false, error: 'bad_request', message: 'itemId is required.' });
+    }
+    const studentRepo = require('../repositories/studentRepository');
+    const saved = await studentRepo.saveItem(req.params.id, { type, itemId });
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function removeSavedItem(req, res, next) {
+  try {
+    const studentRepo = require('../repositories/studentRepository');
+    const result = await studentRepo.removeSavedItem(req.params.id, req.params.savedId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getNotifications(req, res, next) {
+  try {
+    const studentRepo = require('../repositories/studentRepository');
+    const notifs = await studentRepo.getNotifications(req.params.id);
+    res.json({ success: true, data: notifs });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function markNotificationRead(req, res, next) {
+  try {
+    const studentRepo = require('../repositories/studentRepository');
+    const result = await studentRepo.markNotificationRead(req.params.id, req.params.notifId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getAllStudents,
   getStudent,
@@ -152,4 +206,9 @@ module.exports = {
   getLearningPath,
   getRecommendedJobs,
   getStudentGraph,
+  getSavedItems,
+  saveItem,
+  removeSavedItem,
+  getNotifications,
+  markNotificationRead,
 };

@@ -1,25 +1,18 @@
 import React from 'react';
 
-export default function Card({
-  children,
-  className = '',
-  hover = false,
-  glass = false,
-  onClick,
-  ...props
-}) {
-  const baseClasses =
-    'rounded-2xl border transition-all duration-200 bg-slate-900/80 dark:bg-slate-900/80 light:bg-white border-slate-800 dark:border-slate-800 light:border-slate-200 shadow-sm text-slate-100 dark:text-slate-100 light:text-slate-900';
-
-  const hoverClasses = hover
-    ? 'hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/5 cursor-pointer group'
-    : '';
+export default function Card({ children, className = '', hover = false, onClick, style = {} }) {
+  const base = hover
+    ? 'card-hover'
+    : 'card';
 
   return (
     <div
+      className={`${base} ${className}`}
       onClick={onClick}
-      className={`${baseClasses} ${hoverClasses} ${className}`}
-      {...props}
+      style={style}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(e); } : undefined}
     >
       {children}
     </div>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
 
 const AuthContext = createContext(null);
@@ -23,72 +23,99 @@ export function AuthProvider({ children }) {
 
   const [loading, setLoading] = useState(true);
 
-  // Initialize session or fallback to default student-5 persona
+  // ── Persist helpers ────────────────────────────────────────────────────────
+  const persistSession = (accessToken, student, refreshToken) => {
+    try {
+      localStorage.setItem('skillos_token', accessToken);
+      localStorage.setItem('skillos_user', JSON.stringify(student));
+      if (refreshToken) localStorage.setItem('skillos_refresh_token', refreshToken);
+    } catch (_) {}
+  };
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem('skillos_token');
+      localStorage.removeItem('skillos_user');
+      localStorage.removeItem('skillos_refresh_token');
+    } catch (_) {}
+  };
+
+  // ── Initialize session on mount ────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
 
     async function initAuth() {
       const savedToken = localStorage.getItem('skillos_token');
-      if (savedToken) {
-        try {
-          const me = await api.getMe();
-          if (isMounted && me) {
-            setUser(me);
-            try {
-              localStorage.setItem('skillos_user', JSON.stringify(me));
-            } catch (_) {}
-            setLoading(false);
-            return;
-          }
-        } catch (_) {
-          // Token expired or invalid — clear stale data
-          localStorage.removeItem('skillos_token');
-          localStorage.removeItem('skillos_user');
-          if (isMounted) {
-            setToken(null);
-            setUser(null);
-          }
-        }
+
+      if (!savedToken) {
+        if (isMounted) setLoading(false);
+        return;
       }
 
-      // Auto-initialize demo persona (student-5 Aditya Singh) for frictionless first-time experience
       try {
-        const res = await api.login({ studentId: 'student-5' });
-        if (isMounted && res?.token && res?.student) {
-          setToken(res.token);
-          setUser(res.student);
-          try {
-            localStorage.setItem('skillos_token', res.token);
-            localStorage.setItem('skillos_user', JSON.stringify(res.student));
-          } catch (_) {}
+        const me = await api.getMe();
+        if (isMounted && me) {
+          setUser(me);
+          setToken(savedToken);
+          try { localStorage.setItem('skillos_user', JSON.stringify(me)); } catch (_) {}
         }
       } catch (err) {
-        console.warn('Initial demo auth could not connect to backend:', err.message);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
+        // Token expired — try refresh
+        const refreshToken = localStorage.getItem('skillos_refresh_token');
+        if (refreshToken) {
+          try {
+            const res = await api.refreshToken(refreshToken);
+            if (isMounted && res?.accessToken) {
+              setToken(res.accessToken);
+              setUser(res.student);
+              persistSession(res.accessToken, res.student, res.refreshToken);
+              if (isMounted) setLoading(false);
+              return;
+            }
+          } catch (_) {}
         }
+        // Refresh failed — clear stale data
+        clearSession();
+        if (isMounted) { setToken(null); setUser(null); }
+      } finally {
+        if (isMounted) setLoading(false);
       }
     }
 
     initAuth();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
+  // ── Auth Actions ───────────────────────────────────────────────────────────
+
+  const login = async ({ email, password }) => {
+    setLoading(true);
+    try {
+      const res = await api.login({ email, password });
+      if (res?.accessToken && res?.student) {
+        setToken(res.accessToken);
+        setUser(res.student);
+        persistSession(res.accessToken, res.student, res.refreshToken);
+      }
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Development-only: login by studentId without password.
+   * Hidden from production UI.
+   */
   const loginAsStudent = async (studentId) => {
+    if (import.meta.env.PROD) throw new Error('Demo login not available in production.');
     setLoading(true);
     try {
       const res = await api.login({ studentId });
-      if (res?.token && res?.student) {
-        setToken(res.token);
+      if (res?.accessToken && res?.student) {
+        setToken(res.accessToken);
         setUser(res.student);
-        try {
-          localStorage.setItem('skillos_token', res.token);
-          localStorage.setItem('skillos_user', JSON.stringify(res.student));
-        } catch (_) {}
+        persistSession(res.accessToken, res.student, res.refreshToken);
       }
       return res;
     } finally {
@@ -96,35 +123,14 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginWithCredentials = async (email) => {
-    setLoading(true);
-    try {
-      const res = await api.login({ email });
-      if (res?.token && res?.student) {
-        setToken(res.token);
-        setUser(res.student);
-        try {
-          localStorage.setItem('skillos_token', res.token);
-          localStorage.setItem('skillos_user', JSON.stringify(res.student));
-        } catch (_) {}
-      }
-      return res;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const registerUser = async (data) => {
+  const register = async (data) => {
     setLoading(true);
     try {
       const res = await api.register(data);
-      if (res?.token && res?.student) {
-        setToken(res.token);
+      if (res?.accessToken && res?.student) {
+        setToken(res.accessToken);
         setUser(res.student);
-        try {
-          localStorage.setItem('skillos_token', res.token);
-          localStorage.setItem('skillos_user', JSON.stringify(res.student));
-        } catch (_) {}
+        persistSession(res.accessToken, res.student, res.refreshToken);
       }
       return res;
     } finally {
@@ -132,25 +138,25 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    const refreshToken = localStorage.getItem('skillos_refresh_token');
     setToken(null);
     setUser(null);
-    try {
-      localStorage.removeItem('skillos_token');
-      localStorage.removeItem('skillos_user');
-    } catch (_) {}
-    api.logoutApi().catch(() => {});
-  };
+    clearSession();
+    api.logoutApi(refreshToken).catch(() => {});
+  }, []);
 
   const updateUser = (userData) => {
     setUser((prev) => {
       const updated = { ...(prev || {}), ...userData };
-      try {
-        localStorage.setItem('skillos_user', JSON.stringify(updated));
-      } catch (_) {}
+      try { localStorage.setItem('skillos_user', JSON.stringify(updated)); } catch (_) {}
       return updated;
     });
   };
+
+  const forgotPassword = (email) => api.forgotPassword(email);
+
+  const resetPassword = (data) => api.resetPassword(data);
 
   return (
     <AuthContext.Provider
@@ -159,11 +165,13 @@ export function AuthProvider({ children }) {
         token,
         isAuthenticated: !!token && !!user,
         loading,
-        loginAsStudent,
-        loginWithCredentials,
-        register: registerUser,
+        login,
+        loginAsStudent, // dev-only; not shown in prod UI
+        register,
         logout,
         updateUser,
+        forgotPassword,
+        resetPassword,
       }}
     >
       {children}
@@ -173,8 +181,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }

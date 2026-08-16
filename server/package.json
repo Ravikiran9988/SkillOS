@@ -7,22 +7,30 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node scripts/seed.js",
-    "test": "node scripts/testEndpoints.js",
+    "test": "node scripts/testEndpoints.js && node scripts/testEdgeCases.js && node scripts/testUserJourney.js && node scripts/testSecurityAndData.js && node scripts/testGroqProvider.js",
     "test:api": "node scripts/testEndpoints.js",
-    "test:graph": "node scripts/testGraphQueries.js",
+    "test:security": "node scripts/testSecurityAndData.js",
+    "test:ai": "node scripts/testGroqProvider.js",
     "test:edge": "node scripts/testEdgeCases.js",
     "test:idempotency": "node scripts/testIdempotency.js",
     "test:journey": "node scripts/testUserJourney.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.0",
     "neo4j-driver": "^5.21.0",
     "skillos-root": "file:..",
-    "uuid": "^10.0.0"
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^10.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.4",

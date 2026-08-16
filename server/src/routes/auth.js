@@ -1,12 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const authController = require('../controllers/authController');
+const c = require('../controllers/authController');
 const { requireAuth } = require('../middleware/auth');
 
-router.post('/login', authController.login);
-router.post('/register', authController.register);
-router.get('/demo-students', authController.getDemoStudents);
-router.get('/me', requireAuth, authController.getMe);
-router.post('/logout', authController.logout);
+// Public routes
+router.post('/register', c.register);
+router.post('/login', c.login);
+router.post('/refresh', c.refresh);
+router.post('/logout', c.logout);
+router.post('/forgot-password', c.forgotPassword);
+router.post('/reset-password', c.resetPassword);
+router.post('/verify-email', c.verifyEmail);
+
+// Protected routes
+router.get('/me', requireAuth, c.getMe);
+
+// Development-only: demo student quick-login list
+router.get('/demo-students', c.getDemoStudents);
 
 module.exports = router;
